@@ -1,21 +1,15 @@
-# gemini-web-tool-calling
+# Celebration Copilot - Party Planning Agent
 
-`qwen-tool-calling` behind a web server, pointed at Gemini.
+An AI assistant that helps users plan events by generating creative themes, fetching visual mood boards, estimating food/drink budgets, and drafting Partiful invites.
 
-- The harness loop is the same one from `qwen-tool-calling`, wrapped in `run_agent()`.
-- The session store and `/chat` endpoint are the ones from `qwen-web-chat`.
-- Only the model changed: `vertex_ai/gemini-3.5-flash-lite` in the `global` location.
-- `/chat` also returns the tool calls the harness made, and the page shows them
-  above the assistant's answer.
+## Tools Included
 
-## Setup
+1. `get_theme_moodboard`: Searches Unsplash REST API for high-res party photos and generates targeted Pinterest search links.
+2. `calculate_party_budget`: Estimates total budget, drink counts (wine/beer/cocktails), food portions, and ice needs based on guest count and duration.
+3. `generate_partiful_kit`: Generates invitation copy, titles, and direct setup URLs for Partiful.
 
-1. A GCP project with billing and the Agent Platform API enabled
-   (older docs and the endpoint itself still call it Vertex AI)
-2. `gcloud auth application-default login`. The app uses your gcloud default
-   project, so run `gemini-hello-world` first to check it.
-3. `uv run app.py`, then open http://localhost:8000
+## Local Running Instructions
 
-Try: "Is it nice enough to go for a walk in New York?"
-
-The weather comes from Open-Meteo, which needs no API key.
+```bash
+# Install dependencies and run locally
+uv run app.py
