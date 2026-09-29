@@ -1,194 +1,103 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Gemini Web Tool Calling</title>
-        <style>
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
-            body {
-                font-family: system-ui, sans-serif;
-                height: 100vh;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                padding: 3rem 1rem;
-            }
-            #container {
-                width: 100%;
-                max-width: 900px;
-                display: flex;
-                flex-direction: column;
-                border: 1px solid #e0e0e0;
-            }
-            #messages {
-                overflow-y: auto;
-                padding: 2rem;
-                display: flex;
-                flex-direction: column;
-                gap: 1.5rem;
-                min-height: 450px;
-                max-height: 70vh;
-            }
-            .msg {
-                line-height: 1.5;
-                max-width: 80%;
-            }
-            .msg.user {
-                align-self: flex-end;
-                text-align: right;
-            }
-            .msg .role {
-                font-size: 0.75rem;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                color: #999;
-                margin-bottom: 0.25rem;
-            }
-            .msg.loading .content {
-                color: #999;
-            }
-            #input-area {
-                display: flex;
-                gap: 1rem;
-                padding: 1.5rem;
-                border-top: 1px solid #e0e0e0;
-            }
-            #user-input {
-                flex: 1;
-                padding: 0.75rem 0;
-                border: none;
-                border-bottom: 1px solid #e0e0e0;
-                font-size: 1rem;
-                outline: none;
-            }
-            #user-input:focus {
-                border-bottom-color: #000;
-            }
-            button {
-                padding: 0.75rem 1.5rem;
-                background: #000;
-                color: #fff;
-                border: none;
-                font-size: 0.75rem;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                cursor: pointer;
-            }
-            .tool {
-                font-family: ui-monospace, monospace;
-                font-size: 0.75rem;
-                color: #555;
-                background: #f5f5f5;
-                border-left: 3px solid #f59e0b;
-                padding: 0.5rem 0.75rem;
-                margin: 0.25rem 0 0.75rem;
-                white-space: pre-wrap;
-                word-break: break-word;
-            }
-            .tool .label {
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                color: #b45309;
-            }
-            button:disabled {
-                opacity: 0.3;
-            }
-        </style>
-    </head>
-    <body>
-        <div id="container">
-            <div id="messages"></div>
-            <div id="input-area">
-                <input
-                    type="text"
-                    id="user-input"
-                    placeholder="Type a message..."
-                    autocomplete="off"
-                />
-                <button id="send-btn">Send</button>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Party Planning AI Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+    <header class="border-b border-slate-800 p-4 bg-slate-950/50 backdrop-blur">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+                🎉 Celebration Copilot
+            </h1>
+            <span class="text-xs text-slate-400">Powered by Gemini & UV</span>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col gap-4 overflow-hidden">
+        <div id="chat-box" class="flex-1 overflow-y-auto space-y-4 pr-2">
+            <div class="bg-slate-800/60 p-4 rounded-xl border border-slate-700/50 text-slate-300">
+                👋 Hi! I'm your Party Planning AI. I can help you come up with creative themes, fetch visual inspiration, calculate food/drink budgets, and draft your Partiful invitations. Try asking:
+                <div class="mt-2 text-xs text-pink-400 space-y-1">
+                    <p>• "Help me plan a 90s speakeasy party for 25 people for 4 hours."</p>
+                    <p>• "Calculate drink and snack quantities for 40 guests."</p>
+                    <p>• "Create a Partiful invite draft for a tropical rooftop birthday party next Friday."</p>
+                </div>
             </div>
         </div>
-        <script>
-            const messages = document.getElementById("messages");
-            const userInput = document.getElementById("user-input");
-            const sendBtn = document.getElementById("send-btn");
-            let sessionId = null;
 
-            function addMessage(role, text, isLoading = false) {
-                const div = document.createElement("div");
-                div.className =
-                    "msg " +
-                    (role === "you" ? "user" : "assistant") +
-                    (isLoading ? " loading" : "");
-                div.innerHTML =
-                    '<div class="role">' +
-                    role +
-                    '</div><div class="content">' +
-                    text +
-                    "</div>";
-                messages.appendChild(div);
-                messages.scrollTop = messages.scrollHeight;
-                return div;
+        <form id="chat-form" class="flex gap-2">
+            <input 
+                type="text" 
+                id="user-input" 
+                placeholder="Ask about themes, budgets, or invite copy..." 
+                class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-pink-500 text-slate-100"
+                required
+            />
+            <button 
+                type="submit" 
+                class="bg-pink-600 hover:bg-pink-500 font-medium px-6 py-3 rounded-xl transition-colors"
+            >
+                Send
+            </button>
+        </form>
+    </main>
+
+    <script>
+        let sessionId = null;
+        const chatBox = document.getElementById('chat-box');
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+
+        function appendMessage(role, content, toolCalls = []) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = role === 'user' ? 'text-right' : 'text-left';
+
+            let toolsHtml = '';
+            if (toolCalls && toolCalls.length > 0) {
+                toolsHtml = `<div class="mt-2 text-xs font-mono bg-slate-950 p-2 rounded border border-slate-800 text-purple-400">
+                    🔧 Executed Tools: ${toolCalls.map(t => t.tool).join(', ')}
+                </div>`;
             }
 
-            async function send() {
-                const text = userInput.value.trim();
-                if (!text) return;
+            const bubbleClass = role === 'user' 
+                ? 'bg-pink-600 text-white inline-block max-w-[80%] p-3 rounded-2xl rounded-tr-none' 
+                : 'bg-slate-800 text-slate-200 inline-block max-w-[85%] p-4 rounded-2xl rounded-tl-none border border-slate-700/50';
 
-                userInput.value = "";
-                sendBtn.disabled = true;
-                addMessage("you", text);
-                const loading = addMessage("assistant", "Thinking...", true);
+            msgDiv.innerHTML = `
+                <div class="${bubbleClass}">
+                    <div class="whitespace-pre-wrap">${content}</div>
+                    ${toolsHtml}
+                </div>
+            `;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
 
-                try {
-                    const res = await fetch("/chat", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            message: text,
-                            session_id: sessionId,
-                        }),
-                    });
-                    const data = await res.json();
-                    sessionId = data.session_id;
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = userInput.value.trim();
+            if (!text) return;
 
-                    // Show each tool the harness ran, above the assistant's answer
-                    for (const call of data.tool_calls || []) {
-                        const div = document.createElement("div");
-                        div.className = "tool";
-                        const label = document.createElement("span");
-                        label.className = "label";
-                        label.textContent = "tool call  ";
-                        div.appendChild(label);
-                        div.appendChild(
-                            document.createTextNode(
-                                call.name + "(" + JSON.stringify(call.args) + ")\n→ " + call.result,
-                            ),
-                        );
-                        messages.insertBefore(div, loading);
-                    }
-                    loading.querySelector(".content").textContent =
-                        data.response;
-                    loading.classList.remove("loading");
-                } catch (e) {
-                    loading.querySelector(".content").textContent =
-                        "Error: " + e.message;
-                    loading.classList.remove("loading");
-                }
-                sendBtn.disabled = false;
-                userInput.focus();
+            appendMessage('user', text);
+            userInput.value = '';
+
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, session_id: sessionId })
+                });
+
+                const data = await res.json();
+                sessionId = data.session_id;
+                appendMessage('assistant', data.response, data.tool_calls);
+            } catch (err) {
+                appendMessage('assistant', 'Sorry, an error occurred while processing your request.');
             }
-
-            sendBtn.addEventListener("click", send);
-            userInput.addEventListener("keydown", function (e) {
-                if (e.key === "Enter") send();
-            });
-            userInput.focus();
-        </script>
-    </body>
+        });
+    </script>
+</body>
 </html>
