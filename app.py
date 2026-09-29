@@ -1,68 +1,29 @@
-import json
+import os
 import uuid
-from pathlib import Path
-
-import litellm
-import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from typing import Any, Dict, List
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-
+import litellm
 from tools import TOOLS, run_tool
 
-# --- Config ---
+app = FastAPI(title="Party Planning Agent")
 
-SYSTEM_PROMPT = (
-    "You are a helpful assistant. When a question depends on the weather or "
-    "outdoor conditions, call get_weather first, then answer in a sentence."
-)
+SYSTEM_PROMPT = """You are an expert, creative Party Planning Assistant.
+Your job is to help users conceptualize, budget, design, and invite guests for memorable events.
+
+Capabilities & Guidelines:
+1. When discussing themes or visual aesthetics, use `get_theme_moodboard` to give the user image ideas and Pinterest search links.
+2. When users mention guest count, party duration, or expenses, use `calculate_party_budget` to give realistic estimates for food, drinks, and ice.
+3. When users are ready to invite people or draft invitations, use `generate_partiful_kit` to draft creative copy and direct them to Partiful.
+4. Maintain a warm, festive, and highly organized tone. Present budget and quantity breakdowns in structured lists or clear summaries.
+"""
+
+MODEL = os.environ.get("MODEL_NAME", "gemini/gemini-2.5-flash")
 MAX_TOOL_ROUNDS = 5
 
-# --- The Harness ---
-
-
-def run_agent(messages: list[dict]) -> tuple[str, list[dict]]:
-    """Complete until the model answers without asking for a tool.
-
-    Returns the final text and a record of every tool call made along the way.
-    """
-    tool_calls = []
-
-    for _ in range(MAX_TOOL_ROUNDS):
-        reply = litellm.completion(
-            model="vertex_ai/gemini-3.5-flash-lite",
-            vertex_location="global",
-            messages=messages,
-            tools=TOOLS,
-        ).choices[0].message
-
-        # Append assistant's reply (text, tool calls, or both) to the context.
-        # model_dump() keeps it a plain dict: the raw object carries provider-specific
-        # fields that trip Pydantic when LiteLLM re-serializes it next round.
-        messages += [reply.model_dump()]
-
-        if not reply.tool_calls:
-            return reply.content, tool_calls
-
-        # The harness, not the model, runs each tool and appends the result
-        for call in reply.tool_calls:
-            args = json.loads(call.function.arguments)
-            result = run_tool(call.function.name, args)
-            tool_calls += [{"name": call.function.name, "args": args, "result": result}]
-
-            messages += [{"role": "tool", "tool_call_id": call.id, "content": result}]
-
-    return "Sorry, I hit my tool-call limit before finishing.", tool_calls
-
-
-# --- Session Store ---
-
-# session_id -> list of messages. In-memory, single process.
-sessions: dict[str, list] = {}
-
-# --- FastAPI App ---
-
-app = FastAPI()
+sessions: Dict[str, List[Dict[str, Any]]] = {}
 
 
 class ChatRequest(BaseModel):
@@ -73,38 +34,76 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     session_id: str
-    tool_calls: list[dict]
+    tool_calls: List[Dict[str, Any]] = []
 
 
-@app.get("/")
-def index():
-    return FileResponse(Path(__file__).parent / "index.html")
+def run_agent(session_history: List[Dict[str, Any]]) -> tuple[str, List[Dict[str, Any]]]:
+    executed_tool_calls = []
+    
+    for _ in range(MAX_TOOL_ROUNDS):
+        response = litellm.completion(
+            model=MODEL,
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + session_history,
+            tools=TOOLS,
+            tool_choice="auto"
+        )
+        
+        message = response.choices[0].message
+        
+        if hasattr(message, "tool_calls") and message.tool_calls:
+            session_history.append(message.model_dump())
+            
+            for tool_call in message.tool_calls:
+                fn_name = tool_call.function.name
+                fn_args = eval(tool_call.function.arguments) if isinstance(tool_call.function.arguments, str) else tool_call.function.arguments
+                
+                tool_output = run_tool(fn_name, fn_args)
+                
+                executed_tool_calls.append({
+                    "tool": fn_name,
+                    "args": fn_args,
+                    "output": tool_output
+                })
+                
+                session_history.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_output
+                })
+        else:
+            final_text = message.content or ""
+            session_history.append({"role": "assistant", "content": final_text})
+            return final_text, executed_tool_calls
+
+    return "Reached maximum tool processing limit.", executed_tool_calls
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
-    # Get or create the session
+async def chat(request: ChatRequest):
     session_id = request.session_id or str(uuid.uuid4())
     if session_id not in sessions:
-        sessions[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
-
-    # Append user's message to the context
-    sessions[session_id] += [{"role": "user", "content": request.message}]
-
+        sessions[session_id] = []
+        
+    history = sessions[session_id]
+    history.append({"role": "user", "content": request.message})
+    
     try:
-        response, tool_calls = run_agent(sessions[session_id])
+        reply_text, tools_executed = run_agent(history)
+        return ChatResponse(
+            response=reply_text,
+            session_id=session_id,
+            tool_calls=tools_executed
+        )
     except Exception as e:
-        # Auth, billing, a model that is not running: show it in the chat, not as a 500.
-        response, tool_calls = f"Model call failed: {type(e).__name__}: {str(e)[:300]}", []
-
-    return ChatResponse(response=response, session_id=session_id, tool_calls=tool_calls)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/clear")
-def clear(session_id: str | None = None):
-    sessions.pop(session_id, None)
-    return {"status": "ok"}
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    with open("index.html", "r", encoding="utf-8") as f:
+        return f.read()
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
