@@ -1,12 +1,19 @@
-# gemini-web-tool-calling
+# party-planner-agent
 
-`qwen-tool-calling` behind a web server, pointed at Gemini.
+A party planning agent, built on `gemini-web-tool-calling`: FastAPI + LiteLLM + Gemini,
+with every tool call shown in the chat above the assistant's answer.
 
-- The harness loop is the same one from `qwen-tool-calling`, wrapped in `run_agent()`.
-- The session store and `/chat` endpoint are the ones from `qwen-web-chat`.
-- Only the model changed: `vertex_ai/gemini-3.5-flash-lite` in the `global` location.
-- `/chat` also returns the tool calls the harness made, and the page shows them
-  above the assistant's answer.
+## Tools
+
+| Tool | What it does | Source |
+| --- | --- | --- |
+| `get_weather` | Forecast for the party's city and date (or current conditions) | External API: Open-Meteo. From the base code, extended with a `date` |
+| `find_recipes` | Real food and cocktail ideas for a cuisine, ingredient or name | External API: TheMealDB and TheCocktailDB. Original |
+| `estimate_supplies` | How much food, drink, ice and tableware to buy | Local calculation. Original |
+| `plan_budget` | Splits a budget across categories, with cost per guest | Local calculation. Original |
+
+The tools live in `tools.py`; the harness loop and the system prompt are in `app.py`.
+None of the APIs need a key.
 
 ## Setup
 
@@ -16,6 +23,5 @@
    project, so run `gemini-hello-world` first to check it.
 3. `uv run app.py`, then open http://localhost:8000
 
-Try: "Is it nice enough to go for a walk in New York?"
-
-The weather comes from Open-Meteo, which needs no API key.
+Try: "I'm throwing a Mexican-themed rooftop dinner party in New York this Saturday,
+6 to 10pm, for 20 people, with a $500 budget. Help me plan it."

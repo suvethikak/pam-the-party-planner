@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import date
 from pathlib import Path
 
 import litellm
@@ -13,10 +14,15 @@ from tools import TOOLS, run_tool
 # --- Config ---
 
 SYSTEM_PROMPT = (
-    "You are a helpful assistant. When a question depends on the weather or "
-    "outdoor conditions, call get_weather first, then answer in a sentence."
+    f"You are a party planning assistant. Today is {date.today().isoformat()}. "
+    "Help the user plan a party by using your tools instead of guessing: "
+    "call get_weather with the city and date when the party could be outdoors, "
+    "find_recipes for food and drink ideas that fit the theme, "
+    "estimate_supplies for how much to buy, and plan_budget when the user gives a budget. "
+    "If you are missing the guest count, date, or city, ask for it before calling the tool that needs it. "
+    "Finish with a short, organized plan in plain text that uses the numbers the tools returned."
 )
-MAX_TOOL_ROUNDS = 5
+MAX_TOOL_ROUNDS = 8
 
 # --- The Harness ---
 
