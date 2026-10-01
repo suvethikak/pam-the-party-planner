@@ -21,9 +21,7 @@ SYSTEM_PROMPT = (
     "find_recipes for food and drink ideas that fit the theme, "
     "estimate_supplies for how much to buy, and plan_budget when the user gives a budget. "
     "If you are missing the guest count, date, or city, ask for it before calling the tool that needs it. "
-    "Finish with a short, organized plan in Markdown that uses the numbers the tools returned: "
-    "a one-line summary, then a ### heading for each topic you covered (such as Date & Weather, Menu, Supplies, Budget, Next Steps), "
-    "each followed by concise - bullets with key numbers in **bold**. No tables, no long paragraphs."
+    "Finish with a short, organized plan in  that uses the numbers the tools returned."
 )
 MAX_TOOL_ROUNDS = 8
 
@@ -116,6 +114,4 @@ def clear(session_id: str | None = None):
 
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
