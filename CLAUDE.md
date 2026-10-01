@@ -13,9 +13,8 @@ The assignment requires at least three tools the agent calls, at least one of wh
 
 ## Branches
 
-- `main` holds the original base code, unmodified. Do not change it.
 - `party-planner` holds all the party planner work.
-- `get_weather` in `tools.py` must stay identical to the version on `main`. New weather behaviour goes in a
+- `get_weather` in `tools.py` must stay identical to the base code's version. New weather behaviour goes in a
   separate tool (as `check_party_date` does).
 
 ## Commands
@@ -65,8 +64,25 @@ print(r['tool_calls']); print(r['response'])"
   it recover or ask the user.
 - The model may pass numbers as strings, so tools that take numbers convert them with `int()`/`float()`.
   `run_tool()` catches the resulting `ValueError`/`TypeError`.
-- Adding a tool takes four changes: the function, its schema in `TOOLS`, its entry in `TOOL_MAP`, and a
-  mention in `SYSTEM_PROMPT` saying when to use it. Also add it to the tools table in `README.md`.
+- Adding a tool takes five changes: the function, its schema in `TOOLS`, its entry in `TOOL_MAP`, a
+  mention in `SYSTEM_PROMPT` saying when to use it, and an entry in `TOOL_STYLE` in `index.html`. Also add it
+  to the tools table in `README.md`.
+
+### Frontend
+
+`index.html` is a single file with inline CSS and JS and no build step or JS dependencies (only Google Fonts:
+Monoton for the title, Fredoka for the rest). It has a disco party theme:
+
+- Background decorations: CSS light beams (`.beam`), twinkling sparkles and falling confetti pieces generated
+  in JS, plus a CSS-only disco ball (`.disco`) hanging off the chat panel.
+- `burst()` draws a confetti burst on the `#burst` canvas after every answer, bigger when tools ran.
+- `TOOL_STYLE` maps each tool name to the icon, label and color of its card. `toolCard()` renders each call
+  as a collapsible `<details>` showing the args and the pretty-printed result. A result with an `error` key
+  is shown in red. Unknown tools fall back to a 🔧 card.
+- `SAMPLES` holds the sample-prompt chips in the header. Clicking one sends it with its leading emoji stripped.
+- The "Party lights" toggle adds `body.calm`, which hides the background and stops the animations and bursts.
+  It defaults to off under `prefers-reduced-motion` and is remembered in `localStorage`.
+- Message text is always set with `textContent`, never `innerHTML`, since it comes from the user and the model.
 
 ### External APIs (no keys needed)
 
@@ -76,21 +92,3 @@ print(r['tool_calls']); print(r['response'])"
   `filter.php` can return just one match, so `_recipe_lookup()` collects results across several endpoints.
   TheCocktailDB answers an unknown ingredient with an empty body rather than JSON. TheMealDB has been
   unreachable from some networks.
-## Commands
-
-- Run: `uv run app.py` (serves http://localhost:8000 via uvicorn on 127.0.0.1:8000)
-- Auth prerequisite: `gcloud auth application-default login`; the app uses the gcloud default project (Vertex AI / Agent Platform API must be enabled with billing).
-- No tests, linter, or build step are configured.
-
-## Architecture
-
-A small FastAPI app that wraps a hand-written agent loop around Gemini (`vertex_ai/gemini-3.5-flash-lite`, location `global`) via LiteLLM, using OpenAI-style tool calling.
-
-- [app.py](app.py): `run_agent(messages)` is the harness loop. It calls `litellm.completion`, appends the reply to `messages` (mutating the session's list in place), and, if the model requested tools, runs each one itself and appends `role: "tool"` messages, repeating up to `MAX_TOOL_ROUNDS` (5). It returns the final text plus a record of every tool call. The `/chat` endpoint, `/clear`, and the in-memory `sessions` dict (session_id -> message list, single process, lost on restart) are also here.
-- [tools.py](tools.py): each tool has three parts that must stay in sync: the Python function, its JSON schema entry in `TOOLS` (what the model sees), and its entry in `TOOL_MAP` (what `run_tool` dispatches). Tools return JSON strings, including errors, because the model cannot see exceptions. `run_tool` guards against invented tool names and bad args so the loop never crashes.
-- [index.html](index.html): a single-file chat UI served at `/`. It renders the `tool_calls` returned by `/chat` above each answer.
-
-Gotchas:
-- Assistant replies are appended with `reply.model_dump()` on purpose. The raw LiteLLM object carries provider-specific fields that break Pydantic when re-serialized on the next round.
-- Model failures in `/chat` are caught and returned as a normal chat message ("Model call failed: ..."), not as a 500.
-- The weather tool uses Open-Meteo (no API key needed).
