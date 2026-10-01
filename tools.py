@@ -14,7 +14,7 @@ COCKTAIL_URL = "https://www.thecocktaildb.com/api/json/v1/1"
 
 
 def get_weather(location: str, date: str | None = None) -> str:
-    """Get the current weather for a location, or the forecast for one day."""
+    """Get the current weather for a location"""
     try:
         places = requests.get(GEOCODE_URL, params={"name": location, "count": 1}, timeout=10).json()
         if not places.get("results"):
@@ -74,9 +74,10 @@ def _recipe_lookup(base_url: str, key: str, attempts: list[tuple[str, str]], que
         try:
             found = response.json().get(key)
         except ValueError:
-            # TheCocktailDB answers an unknown ingredient with an empty body, not JSON.
+            # If the response is not valid JSON, skip this endpoint.
+            
             continue
-        # The free key can return a single match per filter, so keep going until there is a real choice.
+        
         if isinstance(found, list):
             recipes += [r for r in found if r not in recipes]
         if len(recipes) >= 6:
