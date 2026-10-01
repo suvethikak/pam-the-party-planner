@@ -24,5 +24,8 @@ None of the APIs need a key.
    project, so run `gemini-hello-world` first to check it.
 3. `uv run app.py`, then open http://localhost:8000
 
-Try: "I'm throwing a Mexican-themed rooftop dinner party in New York this Saturday,
-6 to 10pm, for 20 people, with a $500 budget. Help me plan it."
+## Sample queries
+
+1. "I'm throwing a Mexican-themed rooftop dinner party in New York this Saturday, 6 to 10pm, for 20 people, with a $500 budget. Help me plan it."
+2. "Is next Sunday good for a picnic in Chicago?"
+3. "Cocktail ideas with tequila"
