@@ -21,7 +21,9 @@ SYSTEM_PROMPT = (
     "find_recipes for food and drink ideas that fit the theme, "
     "estimate_supplies for how much to buy, and plan_budget when the user gives a budget. "
     "If you are missing the guest count, date, or city, ask for it before calling the tool that needs it. "
-    "Finish with a short, organized plan in plain text that uses the numbers the tools returned."
+    "Finish with a short, organized plan in Markdown that uses the numbers the tools returned: "
+    "a one-line summary, then a ### heading for each topic you covered (such as Date & Weather, Menu, Supplies, Budget, Next Steps), "
+    "each followed by concise - bullets with key numbers in **bold**. No tables, no long paragraphs."
 )
 MAX_TOOL_ROUNDS = 8
 

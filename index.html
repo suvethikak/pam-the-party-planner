@@ -10,6 +10,8 @@
             href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Monoton&display=swap"
             rel="stylesheet"
         />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
         <style>
             :root {
                 --bg: #0b0618;
@@ -45,11 +47,10 @@
                 overflow-x: hidden;
             }
 
-            /* --- Background: light beams, sparkles, ambient confetti --- */
+            /* --- Background: sparkles and ambient confetti --- */
 
             .beams,
-            #confetti,
-            #burst {
+            #confetti {
                 position: fixed;
                 inset: 0;
                 pointer-events: none;
@@ -57,35 +58,6 @@
             .beams {
                 z-index: 0;
                 overflow: hidden;
-            }
-            .beam {
-                position: absolute;
-                top: -60vmax;
-                left: 50%;
-                width: 120vmax;
-                height: 120vmax;
-                margin-left: -60vmax;
-                transform-origin: 50% 50%;
-                mix-blend-mode: screen;
-                opacity: 0.22;
-                animation: sweep 14s linear infinite;
-            }
-            .beam:nth-child(1) {
-                background: conic-gradient(from 0deg, transparent 0 40deg, var(--pink) 46deg, transparent 52deg 360deg);
-            }
-            .beam:nth-child(2) {
-                background: conic-gradient(from 120deg, transparent 0 40deg, var(--cyan) 46deg, transparent 52deg 360deg);
-                animation-duration: 19s;
-                animation-direction: reverse;
-            }
-            .beam:nth-child(3) {
-                background: conic-gradient(from 240deg, transparent 0 40deg, var(--gold) 46deg, transparent 52deg 360deg);
-                animation-duration: 23s;
-            }
-            @keyframes sweep {
-                to {
-                    transform: rotate(360deg);
-                }
             }
             .sparkle {
                 position: absolute;
@@ -121,11 +93,6 @@
                     transform: translate(var(--drift), 110vh) rotate(var(--spin));
                 }
             }
-            #burst {
-                z-index: 20;
-                width: 100%;
-                height: 100%;
-            }
 
             /* --- Chat panel --- */
 
@@ -140,27 +107,8 @@
                 background: var(--panel);
                 backdrop-filter: blur(14px);
                 -webkit-backdrop-filter: blur(14px);
-                border: 1px solid var(--panel-edge);
+                border: 1px solid #fff;
                 border-radius: 24px;
-                box-shadow:
-                    0 0 0 2px rgba(255, 79, 216, 0.35),
-                    0 0 40px rgba(255, 79, 216, 0.25),
-                    0 0 90px rgba(60, 231, 255, 0.15);
-                animation: neon 9s ease-in-out infinite;
-            }
-            @keyframes neon {
-                33% {
-                    box-shadow:
-                        0 0 0 2px rgba(60, 231, 255, 0.4),
-                        0 0 40px rgba(60, 231, 255, 0.25),
-                        0 0 90px rgba(255, 210, 63, 0.15);
-                }
-                66% {
-                    box-shadow:
-                        0 0 0 2px rgba(255, 210, 63, 0.4),
-                        0 0 40px rgba(255, 210, 63, 0.22),
-                        0 0 90px rgba(255, 79, 216, 0.15);
-                }
             }
 
             /* --- Disco ball --- */
@@ -268,7 +216,7 @@
                 font-size: 0.85rem;
                 color: var(--text);
                 background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.16);
+                border: 1px solid #fff;
                 border-radius: 999px;
                 padding: 0.4rem 0.85rem;
                 cursor: pointer;
@@ -278,17 +226,6 @@
                 transform: translateY(-2px);
                 border-color: var(--pink);
                 background: rgba(255, 79, 216, 0.14);
-            }
-            #party-toggle {
-                font: inherit;
-                font-size: 0.8rem;
-                color: var(--muted);
-                background: transparent;
-                border: 1px solid rgba(255, 255, 255, 0.16);
-                border-radius: 999px;
-                padding: 0.35rem 0.8rem;
-                cursor: pointer;
-                white-space: nowrap;
             }
 
             /* --- Messages --- */
@@ -339,37 +276,60 @@
                 word-break: break-word;
             }
 
-            /* Loading: three bouncing balloons */
-            .balloons {
-                display: inline-flex;
-                gap: 0.35rem;
-                align-items: flex-end;
-                height: 1.6rem;
+            /* Rendered Markdown answers */
+            .msg .content.md {
+                white-space: normal;
             }
-            .balloons span {
-                width: 12px;
-                height: 15px;
-                border-radius: 50% 50% 48% 48%;
-                animation: bounce 0.9s ease-in-out infinite;
+            .content.md > * + * {
+                margin-top: 0.6rem;
             }
-            .balloons span:nth-child(1) {
-                background: var(--pink);
+            .content.md h3 {
+                font-size: 1rem;
+                font-weight: 600;
+                color: var(--gold);
+                margin-top: 1rem;
             }
-            .balloons span:nth-child(2) {
-                background: var(--gold);
-                animation-delay: 0.15s;
+            .content.md h3:first-child {
+                margin-top: 0;
             }
-            .balloons span:nth-child(3) {
-                background: var(--cyan);
-                animation-delay: 0.3s;
+            .content.md ul,
+            .content.md ol {
+                padding-left: 1.3rem;
             }
-            @keyframes bounce {
-                50% {
-                    transform: translateY(-9px);
+            .content.md li + li {
+                margin-top: 0.25rem;
+            }
+            .content.md li::marker {
+                color: var(--pink);
+            }
+            .content.md strong {
+                font-weight: 600;
+            }
+
+            /* Loading: a tiny spinning disco ball */
+            .mini-disco {
+                display: inline-block;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                vertical-align: -4px;
+                background:
+                    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0 6%, transparent 35%),
+                    repeating-linear-gradient(0deg, rgba(20, 10, 40, 0.5) 0 1px, transparent 1px 4px),
+                    repeating-linear-gradient(90deg, rgba(20, 10, 40, 0.5) 0 1px, transparent 1px 4px),
+                    conic-gradient(#e9e4ff, #9aa3b8, #ffffff, #b8a6ff, #8fe9ff, #ffffff, #c9c9d6, #e9e4ff);
+                box-shadow:
+                    inset -3px -4px 6px rgba(0, 0, 0, 0.55),
+                    0 0 8px rgba(255, 255, 255, 0.35);
+                animation: mini-spin 1s linear infinite;
+            }
+            @keyframes mini-spin {
+                to {
+                    background-position: 0 0, 0 0, 16px 0, 0 0;
                 }
             }
             .loading-text {
-                margin-left: 0.6rem;
+                margin-left: 0.5rem;
                 color: var(--muted);
                 font-size: 0.9rem;
             }
@@ -451,7 +411,7 @@
                 min-width: 0;
                 padding: 0.8rem 1.1rem;
                 border-radius: 999px;
-                border: 1px solid rgba(255, 255, 255, 0.18);
+                border: 1px solid #fff;
                 background: rgba(255, 255, 255, 0.06);
                 color: var(--text);
                 font: inherit;
@@ -463,7 +423,7 @@
                 color: var(--muted);
             }
             #user-input:focus {
-                border-color: var(--cyan);
+                border-color: #fff;
                 box-shadow: 0 0 0 3px rgba(60, 231, 255, 0.2);
             }
             #send-btn {
@@ -487,17 +447,18 @@
                 cursor: default;
             }
 
-            /* --- Calm mode: party lights off --- */
+            /* --- Respect reduced-motion settings --- */
 
-            body.calm .beams,
-            body.calm #confetti {
-                display: none;
-            }
-            body.calm .disco,
-            body.calm .disco-wrap,
-            body.calm .disco::after,
-            body.calm #container {
-                animation: none;
+            @media (prefers-reduced-motion: reduce) {
+                .beams,
+                #confetti {
+                    display: none;
+                }
+                .disco,
+                .disco-wrap,
+                .disco::after {
+                    animation: none;
+                }
             }
 
             @media (max-width: 640px) {
@@ -554,13 +515,8 @@
         </style>
     </head>
     <body>
-        <div class="beams" aria-hidden="true">
-            <div class="beam"></div>
-            <div class="beam"></div>
-            <div class="beam"></div>
-        </div>
+        <div class="beams" aria-hidden="true"></div>
         <div id="confetti" aria-hidden="true"></div>
-        <canvas id="burst" aria-hidden="true"></canvas>
 
         <div id="container">
             <div class="disco-wrap" aria-hidden="true"><div class="disco"></div></div>
@@ -568,12 +524,11 @@
                 <h1>Hi, I'm Pam!</h1>
                 <h2>Let's plan your party.</h2>
                 <p class="tagline">
-                    Tell me the when, the where, how many people are coming, what your budget is, and if you have a theme. I'll check the forecast for your date,
-                    find food and cocktail ideas, work out how much to buy, and plan using your budget.
+                    Tell me when and where it's happening, roughly how many guests you're expecting, your budget, and any theme you have in mind.
+                    I'll check the forecast, suggest food and drinks, figure out how much to buy, and keep everything within budget.
                 </p>
                 <div class="header-row">
                     <div class="chips" id="chips"></div>
-                    <button id="party-toggle" type="button"></button>
                 </div>
             </header>
             <div id="messages" aria-live="polite"></div>
@@ -581,7 +536,7 @@
                 <input
                     type="text"
                     id="user-input"
-                    placeholder="Tell me about your party..."
+                    placeholder="Describe your party..."
                     autocomplete="off"
                 />
                 <button id="send-btn">Let's party!</button>
@@ -591,51 +546,25 @@
             const messages = document.getElementById("messages");
             const userInput = document.getElementById("user-input");
             const sendBtn = document.getElementById("send-btn");
-            const partyToggle = document.getElementById("party-toggle");
             let sessionId = null;
 
             const COLORS = ["#ff4fd8", "#3ce7ff", "#ffd23f", "#9dff5c", "#ff8a3d", "#b18cff"];
 
             // How each tool shows up in the chat
             const TOOL_STYLE = {
-                get_weather: { icon: "🌤️", label: "Current weather", color: "#3ce7ff" },
-                check_party_date: { icon: "📅", label: "Party-date forecast", color: "#9dff5c" },
-                find_recipes: { icon: "🍹", label: "Food & drink ideas", color: "#ff4fd8" },
-                estimate_supplies: { icon: "🛒", label: "Supply list", color: "#ffd23f" },
-                plan_budget: { icon: "💸", label: "Budget split", color: "#ff8a3d" },
+                get_weather: { label: "Check current weather", color: "#3ce7ff" },
+                check_party_date: { label: "Forecast for party date", color: "#9dff5c" },
+                find_recipes: { label: "Food and drink ideas", color: "#ff4fd8" },
+                estimate_supplies: { label: "Estimated supplies", color: "#ffd23f" },
+                plan_budget: { label: "Budget plan", color: "#ff8a3d" },
             };
 
             const SAMPLES = [
-                "🫔 Mexican rooftop dinner in New York this Saturday, 20 people, $250",
-                "🧺 Is next Sunday good for a picnic in Chicago?",
-                "🍸 Asian inspired cocktail ideas with tequila",
-                "🍽️ How much food should I buy for 4 hour dinner party with 40 guests?",
+                "Mexican rooftop dinner in New York this Saturday, 20 people, $250" ,
+                "Is next Sunday good for a picnic in Chicago?",
+                "Winter inspired cocktail ideas with tequila",
+                "How much food should I buy for 4 hour dinner party with 40 guests?",
             ];
-
-
-            function loadPartyMode() {
-                try {
-                    const saved = localStorage.getItem("partyMode");
-                    if (saved !== null) return saved === "on";
-                } catch (e) {}
-                return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-            }
-
-            function setPartyMode(on) {
-                document.body.classList.toggle("calm", !on);
-                partyToggle.textContent = on ? "🪩 Party lights: on" : "🌙 Party lights: off";
-                partyToggle.setAttribute("aria-pressed", String(on));
-                try {
-                    localStorage.setItem("partyMode", on ? "on" : "off");
-                } catch (e) {}
-            }
-
-            let partyOn = loadPartyMode();
-            setPartyMode(partyOn);
-            partyToggle.addEventListener("click", function () {
-                partyOn = !partyOn;
-                setPartyMode(partyOn);
-            });
 
             // --- Background decorations ---
 
@@ -671,71 +600,6 @@
                 confetti.appendChild(p);
             }
 
-            // --- Confetti burst on each answer ---
-
-            const canvas = document.getElementById("burst");
-            const ctx = canvas.getContext("2d");
-            let particles = [];
-            let animating = false;
-
-            function resizeCanvas() {
-                canvas.width = window.innerWidth * devicePixelRatio;
-                canvas.height = window.innerHeight * devicePixelRatio;
-            }
-            resizeCanvas();
-            window.addEventListener("resize", resizeCanvas);
-
-            function burst(count) {
-                if (!partyOn) return;
-                const w = window.innerWidth;
-                for (let i = 0; i < count; i++) {
-                    const fromLeft = i % 2 === 0;
-                    particles.push({
-                        x: fromLeft ? 0 : w,
-                        y: window.innerHeight * 0.75,
-                        vx: (fromLeft ? 1 : -1) * rand(4, 13),
-                        vy: -rand(8, 18),
-                        size: rand(5, 10),
-                        color: COLORS[Math.floor(Math.random() * COLORS.length)],
-                        rot: rand(0, Math.PI * 2),
-                        vr: rand(-0.3, 0.3),
-                        life: 0,
-                    });
-                }
-                if (!animating) {
-                    animating = true;
-                    requestAnimationFrame(tick);
-                }
-            }
-
-            function tick() {
-                const dpr = devicePixelRatio;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                for (const p of particles) {
-                    p.vy += 0.35;
-                    p.vx *= 0.985;
-                    p.x += p.vx;
-                    p.y += p.vy;
-                    p.rot += p.vr;
-                    p.life++;
-                    ctx.save();
-                    ctx.translate(p.x * dpr, p.y * dpr);
-                    ctx.rotate(p.rot);
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect((-p.size / 2) * dpr, (-p.size / 4) * dpr, p.size * dpr, (p.size / 2) * dpr);
-                    ctx.restore();
-                }
-                particles = particles.filter(function (p) {
-                    return p.y < window.innerHeight + 40 && p.life < 300;
-                });
-                if (particles.length) {
-                    requestAnimationFrame(tick);
-                } else {
-                    animating = false;
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-            }
-
             // --- Chat ---
 
             function addMessage(role, text) {
@@ -753,11 +617,16 @@
                 return div;
             }
 
+            function renderMarkdown(el, text) {
+                el.classList.add("md");
+                el.innerHTML = DOMPurify.sanitize(marked.parse(text || ""));
+            }
+
             function addLoading() {
                 const div = addMessage("assistant", "");
                 const content = div.querySelector(".content");
                 content.innerHTML =
-                    '<span class="balloons"><span></span><span></span><span></span></span>' +
+                    '<span class="mini-disco"></span>' +
                     '<span class="loading-text">Planning the party...</span>';
                 return div;
             }
@@ -787,7 +656,7 @@
                 const summary = document.createElement("summary");
                 const name = document.createElement("span");
                 name.className = "tool-name";
-                name.textContent = style.icon + " " + style.label + (isError ? " (error)" : "");
+                name.textContent = (style.icon ? style.icon + " " : "") + style.label + (isError ? " (error)" : "");
                 const args = document.createElement("span");
                 args.className = "tool-args";
                 args.textContent = call.name + "(" + summarizeArgs(call.args) + ")";
@@ -828,8 +697,7 @@
                         for (const call of calls) group.appendChild(toolCard(call));
                         messages.insertBefore(group, loading);
                     }
-                    loading.querySelector(".content").textContent = data.response;
-                    burst(calls.length ? 160 : 70);
+                    renderMarkdown(loading.querySelector(".content"), data.response);
                 } catch (e) {
                     loading.querySelector(".content").textContent = "Error: " + e.message;
                 }
@@ -845,16 +713,15 @@
                 chip.className = "chip";
                 chip.textContent = sample;
                 chip.addEventListener("click", function () {
-                    // Drop the leading emoji before sending
-                    send(sample.replace(/^\S+\s/, ""));
+                    send(sample);
                 });
                 chips.appendChild(chip);
             }
 
             addMessage(
                 "assistant",
-                "Tell me the occasion, city, date, guest count and budget, " +
-                    "or click on one of the ideas above to get started. 🥂",
+                "What are we celebrating? Share the city, date, number of guests and your budget, " +
+                    "or pick one of the ideas above to get started. 🥂",
             );
 
             sendBtn.addEventListener("click", function () {
