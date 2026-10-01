@@ -565,10 +565,11 @@
         <div id="container">
             <div class="disco-wrap" aria-hidden="true"><div class="disco"></div></div>
             <header>
-                <h1>Party Planner</h1>
+                <h1>Hi, I'm Pam!</h1>
+                <h2>Let's plan your party.</h2>
                 <p class="tagline">
-                    Tell me the who, when, where and budget. I'll check the forecast for your date,
-                    find food and cocktail ideas, work out how much to buy, and split your budget.
+                    Tell me the when, the where, how many people are coming, what your budget is, and if you have a theme. I'll check the forecast for your date,
+                    find food and cocktail ideas, work out how much to buy, and plan using your budget.
                 </p>
                 <div class="header-row">
                     <div class="chips" id="chips"></div>
@@ -583,7 +584,7 @@
                     placeholder="Tell me about your party..."
                     autocomplete="off"
                 />
-                <button id="send-btn">Let's party</button>
+                <button id="send-btn">Let's party!</button>
             </div>
         </div>
         <script>
@@ -605,13 +606,12 @@
             };
 
             const SAMPLES = [
-                "🌮 Mexican rooftop dinner in New York this Saturday, 20 people, $500",
-                "☀️ Is next Sunday good for a picnic in Chicago?",
-                "🍸 Cocktail ideas with tequila",
-                "🛒 How much to buy for 40 guests over 4 hours?",
+                "🫔 Mexican rooftop dinner in New York this Saturday, 20 people, $250",
+                "🧺 Is next Sunday good for a picnic in Chicago?",
+                "🍸 Asian inspired cocktail ideas with tequila",
+                "🍽️ How much food should I buy for 4 hour dinner party with 40 guests?",
             ];
 
-            // --- Party mode (lights, confetti) ---
 
             function loadPartyMode() {
                 try {
@@ -743,7 +743,7 @@
                 div.className = "msg " + (role === "you" ? "user" : "assistant");
                 const roleEl = document.createElement("div");
                 roleEl.className = "role";
-                roleEl.textContent = role === "you" ? "You" : "🎉 Party Planner";
+                roleEl.textContent = role === "you" ? "You" : "Pam";
                 const content = document.createElement("div");
                 content.className = "content";
                 content.textContent = text;
@@ -853,8 +853,8 @@
 
             addMessage(
                 "assistant",
-                "Hey! 🪩 What are we celebrating? Tell me the occasion, city, date, guest count and budget, " +
-                    "or tap one of the ideas above to get started.",
+                "Tell me the occasion, city, date, guest count and budget, " +
+                    "or click on one of the ideas above to get started. 🥂",
             );
 
             sendBtn.addEventListener("click", function () {
