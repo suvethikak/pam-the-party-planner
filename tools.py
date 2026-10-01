@@ -66,6 +66,104 @@ def get_weather(location: str, date: str | None = None) -> str:
     })
 
 
+# WMO weather codes Open-Meteo reports, grouped into what matters for an outdoor party.
+RAIN_CODES = {51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82}
+SNOW_CODES = {71, 73, 75, 77, 85, 86}
+STORM_CODES = {95, 96, 99}  # thunderstorms; 96 and 99 come with hail
+MIN_HIGH_F = 50
+MAX_WIND_MPH = 25
+MAX_RAIN_CHANCE_PCT = 50
+
+
+def _weather_problems(day: dict) -> list[str]:
+    """List what makes a day bad for an outdoor party. An empty list means the day looks good."""
+    problems = []
+    code = day["weather_code"]
+    if code in STORM_CODES:
+        problems.append("thunderstorms with hail" if code in {96, 99} else "thunderstorms")
+    elif code in SNOW_CODES:
+        problems.append("snow")
+    elif code in RAIN_CODES or (day["rain_chance_pct"] or 0) >= MAX_RAIN_CHANCE_PCT:
+        problems.append(f"rain ({day['rain_chance_pct']}% chance)")
+    if day["max_wind_mph"] >= MAX_WIND_MPH:
+        problems.append(f"strong wind ({day['max_wind_mph']} mph)")
+    if day["high_f"] < MIN_HIGH_F:
+        problems.append(f"cold (high of {day['high_f']}°F)")
+    return problems
+
+
+def check_party_date(location: str, date: str) -> str:
+    """Check whether a date suits an outdoor party, and suggest the closest good dates if not."""
+    try:
+        places = requests.get(GEOCODE_URL, params={"name": location, "count": 1}, timeout=10).json()
+        if not places.get("results"):
+            return json.dumps({"error": f"City '{location}' was not found."})
+        place = places["results"][0]
+
+        # Fetch the whole 16 day window so there are backup dates to choose from.
+        data = requests.get(FORECAST_URL, params={
+            "latitude": place["latitude"],
+            "longitude": place["longitude"],
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max",
+            "temperature_unit": "fahrenheit",
+            "wind_speed_unit": "mph",
+            "timezone": "auto",
+            "forecast_days": 16,
+        }, timeout=10).json()
+    except requests.RequestException as e:
+        return json.dumps({"error": f"Weather service failed: {e}"})
+
+    if data.get("error"):
+        return json.dumps({"error": f"Weather service error: {data.get('reason')}"})
+
+    daily = data["daily"]
+    days = [
+        {
+            "date": d,
+            "weather_code": code,
+            "high_f": high,
+            "low_f": low,
+            "rain_chance_pct": rain,
+            "max_wind_mph": wind,
+        }
+        for d, code, high, low, rain, wind in zip(
+            daily["time"], daily["weather_code"], daily["temperature_2m_max"], daily["temperature_2m_min"],
+            daily["precipitation_probability_max"], daily["wind_speed_10m_max"],
+        )
+        # The furthest days can come back with nulls; they cannot be judged.
+        if None not in (code, high, wind)
+    ]
+    dates = [d["date"] for d in days]
+    if date not in dates:
+        return json.dumps({
+            "error": f"No forecast for {date}. Forecasts cover {dates[0]} to {dates[-1]} (dates as YYYY-MM-DD)."
+            if dates else f"No forecast available for {location}."
+        })
+
+    party_day = days[dates.index(date)]
+    problems = _weather_problems(party_day)
+    result = {
+        "location": place["name"],
+        "date": date,
+        "forecast": {k: v for k, v in party_day.items() if k != "weather_code"},
+        "good_for_outdoors": not problems,
+    }
+    if problems:
+        result["problems"] = problems
+        # Closest good days first, before or after the party date.
+        target = dates.index(date)
+        backups = sorted(
+            (d for i, d in enumerate(days) if i != target and not _weather_problems(d)),
+            key=lambda d: abs(dates.index(d["date"]) - target),
+        )
+        result["backup_dates"] = [
+            {k: v for k, v in d.items() if k != "weather_code"} for d in backups[:3]
+        ]
+        if not backups:
+            result["note"] = "No day in the forecast window looks good for outdoors. Consider an indoor venue."
+    return json.dumps(result)
+
+
 def _recipe_lookup(base_url: str, key: str, attempts: list[tuple[str, str]], query: str) -> list[dict]:
     """Try each (endpoint, param) in turn, collecting recipes until there are enough to choose from."""
     recipes = []
@@ -203,6 +301,25 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "check_party_date",
+            "description": (
+                "Check whether a date is good for an outdoor party: returns that day's forecast and flags rain, "
+                "snow, hail, strong wind or a high below 50°F. If the day looks bad, also returns the closest "
+                "good backup dates. Only works for dates within about 16 days."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "City name, e.g. 'New York'"},
+                    "date": {"type": "string", "description": "Day of the party as YYYY-MM-DD"},
+                },
+                "required": ["location", "date"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "find_recipes",
             "description": (
                 "Look up real recipe names for the party menu. For food, query by cuisine "
@@ -271,6 +388,7 @@ TOOLS = [
 # What the harness runs: tool name -> Python function.
 TOOL_MAP = {
     "get_weather": get_weather,
+    "check_party_date": check_party_date,
     "find_recipes": find_recipes,
     "estimate_supplies": estimate_supplies,
     "plan_budget": plan_budget,
