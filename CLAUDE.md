@@ -70,19 +70,24 @@ print(r['tool_calls']); print(r['response'])"
 
 ### Frontend
 
-`index.html` is a single file with inline CSS and JS and no build step or JS dependencies (only Google Fonts:
-Monoton for the title, Fredoka for the rest). It has a disco party theme:
+`index.html` is a single file with inline CSS and JS and no build step or JS dependencies (only the DM Sans
+Google Font, used for everything including the title). It has a light, candlelit dinner party theme, taken from a
+New Year's Eve table: ivory and greige, charcoal ink for text, the user's bubbles and buttons, and taper-candle
+colors (`--blush`, `--butter`, `--sage`, `--taupe`, `--silver`) as tool-card accents.
 
-- Background decorations: CSS light beams (`.beam`), twinkling sparkles and falling confetti pieces generated
-  in JS, plus a CSS-only disco ball (`.disco`) hanging off the chat panel.
-- `burst()` draws a confetti burst on the `#burst` canvas after every answer, bigger when tools ran.
-- `TOOL_STYLE` maps each tool name to the icon, label and color of its card. `toolCard()` renders each call
+- Background decorations: a warm candle glow on `body`, silver paper stars on threads (`.hanging-star` in
+  `#stars`, generated in JS) that sway gently, plus a CSS-only chrome disco ball (`.disco`) hanging off the chat
+  panel. Under `prefers-reduced-motion` the stars and disco ball stay but stop moving.
+- `TOOL_STYLE` maps each tool name to the label and color of its card. `toolCard()` renders each call
   as a collapsible `<details>` showing the args and the pretty-printed result. A result with an `error` key
-  is shown in red. Unknown tools fall back to a 🔧 card.
-- `SAMPLES` holds the sample-prompt chips in the header. Clicking one sends it with its leading emoji stripped.
-- The "Party lights" toggle adds `body.calm`, which hides the background and stops the animations and bursts.
-  It defaults to off under `prefers-reduced-motion` and is remembered in `localStorage`.
-- Message text is always set with `textContent`, never `innerHTML`, since it comes from the user and the model.
+  is shown in red. Unknown tools fall back to a card labelled with the tool's name.
+- A `make_party_playlist` card opens by default and shows `playlistView()`: one `songRow()` per song with
+  artwork, a ▶ preview button and an Apple Music link, plus a "Copy tracklist" button; the raw JSON sits in a
+  nested `<details class="raw">`. All previews share one `Audio` element (`toggleSong()`/`stopSong()`), and
+  `body.music` speeds up the disco ball while one plays.
+- `SAMPLES` holds the sample-prompt chips in the header. Clicking one sends it as is.
+- The user's messages and everything in tool cards are set with `textContent`, never `innerHTML`. The model's
+  answer is rendered as Markdown with `marked`, then sanitized with DOMPurify before it reaches `innerHTML`.
 
 ### External APIs (no keys needed)
 
@@ -92,3 +97,6 @@ Monoton for the title, Fredoka for the rest). It has a disco party theme:
   `filter.php` can return just one match, so `_recipe_lookup()` collects results across several endpoints.
   TheCocktailDB answers an unknown ingredient with an empty body rather than JSON. TheMealDB has been
   unreachable from some networks.
+- iTunes Search: used by `make_party_playlist`. A search term also matches song titles, so songs titled just
+  the search ("80s", "Beach Party") are skipped. `_bare_title()` strips "(Remastered)", "(feat. ...)" and
+  " - Radio Edit" so versions of one song are not both played. Apple rate limits it to roughly 20 calls a minute.

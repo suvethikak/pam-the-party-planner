@@ -2,15 +2,17 @@
 
 import json
 import math
+import re
 
 import requests
 
-# Open-Meteo, TheMealDB and TheCocktailDB are free and need no API key
+# Open-Meteo, TheMealDB, TheCocktailDB and iTunes Search are free and need no API key
 # ("1" in the recipe URLs is their public test key).
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 MEAL_URL = "https://www.themealdb.com/api/json/v1/1"
 COCKTAIL_URL = "https://www.thecocktaildb.com/api/json/v1/1"
+ITUNES_URL = "https://itunes.apple.com/search"
 
 
 def get_weather(location: str, date: str | None = None) -> str:
@@ -250,30 +252,114 @@ def estimate_supplies(guests: int, hours: float, meal: str = "snacks", alcohol: 
     })
 
 
-# Share of the budget each category gets, by how the party is catered.
-BUDGET_SPLITS = {
-    "casual": {"food": 0.40, "drinks": 0.25, "decorations": 0.10, "entertainment": 0.10, "supplies": 0.05, "buffer": 0.10},
-    "dinner": {"food": 0.50, "drinks": 0.20, "decorations": 0.10, "entertainment": 0.05, "supplies": 0.05, "buffer": 0.10},
-    "kids": {"food": 0.30, "drinks": 0.10, "decorations": 0.15, "entertainment": 0.25, "supplies": 0.10, "buffer": 0.10},
-}
+MAX_SONGS = 70  # about four hours; past this the result gets too long for the model, so the host loops it
+AVG_SONG_SECONDS = 210
 
 
-def plan_budget(total_budget: float, guests: int, style: str = "casual") -> str:
-    """Split a total budget across party categories and work out the cost per guest."""
-    total_budget, guests = float(total_budget), int(guests)
-    if total_budget <= 0 or guests < 1:
-        return json.dumps({"error": "total_budget and guests must both be greater than zero."})
-    if style not in BUDGET_SPLITS:
-        return json.dumps({"error": f"style must be one of {list(BUDGET_SPLITS)}."})
+def _bare_title(title: str) -> str:
+    """'Dancing Queen (2008 Remaster)' -> 'dancing queen', so versions of one song count as the same song.
 
-    per_guest = round(total_budget / guests, 2)
-    result = {
-        "total_budget": total_budget,
-        "per_guest": per_guest,
-        "allocation": {category: round(total_budget * share, 2) for category, share in BUDGET_SPLITS[style].items()},
+    Punctuation goes too, so 'POP!' matches the search 'pop'.
+    """
+    return re.sub(r"[^\w\s]", "", re.split(r" [(\[-]", title)[0]).strip().lower()
+
+
+def _song(track: dict) -> dict:
+    """The fields of an iTunes track the model and the page need."""
+    seconds = track.get("trackTimeMillis", 0) // 1000
+    return {
+        "title": track["trackName"],
+        "artist": track["artistName"],
+        "year": int(track["releaseDate"][:4]),
+        "genre": track.get("primaryGenreName"),
+        "length": f"{seconds // 60}:{seconds % 60:02d}",
+        "seconds": seconds,
+        "preview": track.get("previewUrl"),
+        "link": track.get("trackViewUrl"),
+        "artwork": track.get("artworkUrl100"),
     }
-    if per_guest < 10:
-        result["warning"] = "Under $10 per guest is tight. Consider a potluck or BYOB."
+
+
+def _next_song(songs: list[dict], playlist: list[dict], artist_limit: int) -> dict | None:
+    """Pop songs off the front of one search's results until one is new and its artist isn't overplayed."""
+    while songs:
+        song = songs.pop(0)
+        repeat = any(_bare_title(s["title"]) == _bare_title(song["title"]) for s in playlist)
+        artist_plays = sum(1 for s in playlist if s["artist"] == song["artist"])
+        if not repeat and artist_plays < artist_limit:
+            return song
+    return None
+
+
+def make_party_playlist(searches: list, hours: float, decade: int | None = None, clean: bool = False) -> str:
+    """Build a playlist of real songs that fits the party's theme and fills its length."""
+    hours = float(hours)
+    if hours <= 0:
+        return json.dumps({"error": "hours must be greater than zero."})
+    if isinstance(searches, str):
+        searches = [searches]
+    searches = [s.strip() for s in searches if str(s).strip()][:4]
+    if not searches:
+        return json.dumps({"error": "Pass 1 to 4 searches: genres or artists that fit the theme, e.g. ['cumbia', 'Selena']."})
+    if decade is not None:
+        decade = int(decade)
+        if decade < 100:
+            decade += 1900  # '80' for the 80s
+        decade -= decade % 10
+
+    # One list of candidate songs per search, best matches first.
+    candidates, empty = [], []
+    try:
+        for search in searches:
+            response = requests.get(ITUNES_URL, params={
+                "term": search, "media": "music", "entity": "song", "limit": 200,
+            }, timeout=10)
+            response.raise_for_status()
+            songs = [
+                _song(t) for t in response.json().get("results", [])
+                if t.get("trackName") and t.get("releaseDate")
+                # A song merely titled after the search ("80s", "Beach Party") is rarely what the party wants.
+                and _bare_title(t["trackName"]) != _bare_title(search)
+                and not (clean and t.get("trackExplicitness") == "explicit")
+                and not (decade and not decade <= int(t["releaseDate"][:4]) < decade + 10)
+            ]
+            if songs:
+                candidates.append(songs)
+            else:
+                empty.append(search)
+    except requests.RequestException as e:
+        return json.dumps({"error": f"Music search failed: {e}"})
+
+    if not candidates:
+        hint = f" from the {decade}s" if decade else ""
+        return json.dumps({"error": f"No songs{hint} found for {searches}. Try other genres or well-known artists."})
+
+    # Take one song from each search in turn, so every search is heard throughout the party,
+    # and stop once the songs fill the party or run out.
+    target_seconds = hours * 3600
+    # Keep one artist from taking over a genre search, but let an artist search fill its share.
+    artist_limit = max(3, math.ceil(min(target_seconds / AVG_SONG_SECONDS, MAX_SONGS) / len(searches)))
+    playlist, total = [], 0
+    while total < target_seconds and len(playlist) < MAX_SONGS and any(candidates):
+        for songs in candidates:
+            song = _next_song(songs, playlist, artist_limit)
+            if song and total < target_seconds and len(playlist) < MAX_SONGS:
+                playlist.append(song)
+                total += song["seconds"]
+
+    result = {
+        "searches": searches,
+        "party_minutes": round(hours * 60),
+        "playlist_minutes": round(total / 60),
+        "songs": playlist,
+    }
+    if empty:
+        result["no_results_for"] = empty
+    if total < target_seconds:
+        result["note"] = (
+            f"The playlist covers {round(total / 60)} of {round(hours * 60)} minutes. "
+            "Loop it, or add more searches to fill the rest."
+        )
     return json.dumps(result)
 
 
@@ -363,23 +449,32 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "plan_budget",
+            "name": "make_party_playlist",
             "description": (
-                "Split a total party budget in dollars across food, drinks, decorations, entertainment, "
-                "supplies and a buffer, and work out the cost per guest."
+                "Build a playlist of real songs for the party that fills its length, mixing results from each "
+                "search in turn. Each song comes with artist, year, genre, length and a 30 second preview the "
+                "user can play in the chat. Turn the theme into music searches: well-known artists that fit "
+                "work best ('Selena', 'Bad Bunny'), genres also work ('cumbia', 'disco')."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "total_budget": {"type": "number", "description": "Total budget in dollars"},
-                    "guests": {"type": "integer", "description": "Number of guests"},
-                    "style": {
-                        "type": "string",
-                        "enum": ["casual", "dinner", "kids"],
-                        "description": "Kind of party. Defaults to casual.",
+                    "searches": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "1 to 4 artists or genres that fit the party's theme",
+                    },
+                    "hours": {"type": "number", "description": "How long the party lasts, in hours"},
+                    "decade": {
+                        "type": "integer",
+                        "description": "Only songs released in this decade, e.g. 1980 for an 80s party. Omit for any era.",
+                    },
+                    "clean": {
+                        "type": "boolean",
+                        "description": "Leave out explicit songs, e.g. for a kids' or family party. Defaults to false.",
                     },
                 },
-                "required": ["total_budget", "guests"],
+                "required": ["searches", "hours"],
             },
         },
     },
@@ -391,7 +486,7 @@ TOOL_MAP = {
     "check_party_date": check_party_date,
     "find_recipes": find_recipes,
     "estimate_supplies": estimate_supplies,
-    "plan_budget": plan_budget,
+    "make_party_playlist": make_party_playlist,
 }
 
 
