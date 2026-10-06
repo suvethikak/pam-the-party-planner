@@ -185,13 +185,25 @@ def make_mood_board(searches: list) -> str:
         return json.dumps({"error": "Give 1 to 3 searches, like ['garden', 'birthday', 'disco']."})
     per_search = 9 // len(searches)  # 9 for one search, 4 each for two, 3 each for three
 
+    # Are.na answers 429 with a web page instead of JSON when it gets too many requests
+    busy = json.dumps({
+        "error": "The image service (Are.na) is busy right now. Don't call make_mood_board again in this reply; "
+                 "tell the user to try the mood board again in a minute."
+    })
+
     images, empty = [], []
     try:
         for search in searches:
             found = []
-            boards = requests.get(ARENA_URL + "/search/channels", params={"q": search, "per": 5}, timeout=10).json()
+            response = requests.get(ARENA_URL + "/search/channels", params={"q": search, "per": 5}, timeout=10)
+            if response.status_code == 429:
+                return busy
+            boards = response.json()
             for board in boards["channels"]:
-                contents = requests.get(f"{ARENA_URL}/channels/{board['slug']}/contents", params={"per": 20}, timeout=10).json()
+                response = requests.get(f"{ARENA_URL}/channels/{board['slug']}/contents", params={"per": 20}, timeout=10)
+                if response.status_code == 429:
+                    return busy
+                contents = response.json()
                 for block in contents["contents"]:
                     if block["class"] == "Image" and len(found) < per_search:
                         found.append({
