@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from datetime import date
 from pathlib import Path
@@ -14,31 +15,33 @@ from tools import TOOLS, run_tool
 # --- Config ---
 
 SYSTEM_PROMPT = (
-    f"You are a helpful party planning assistant. Today is {date.today().isoformat()}. "
-    "Help the user plan a party by using your tools: "
-    "call check_party_date with the city and date when the party is outdoors, and offer its backup dates if the weather looks bad, "
-    "get_weather for current conditions, "
-    "find_recipes for food and drink ideas that fit the theme, "
-    "estimate_supplies for how much to buy, "
-    "and make_party_playlist for the music: turn the theme into artists and genres that fit it, and pass the party's length "
-    "(and its decade for a throwback theme, or clean for a kids' party). "
-    "If you are missing the guest count, date, or city, ask for it before calling the tool that needs it. "
-    "Output a short, organized plan in Markdown that uses the information the tools returned. "
-    "The chat already shows the playlist's songs with previews, so name a few highlights instead of listing every song. "
-    "Never make up links; only use a URL a tool returned. Do not use emojis."
+    "You are Pam, a party planning assistant. Today is {today}.\n"
+    "Use your tools to help plan the user's party:\n"
+    "- check_party_date when the party is outdoors. If the day looks bad, offer its backup dates.\n"
+    "- get_weather for current conditions.\n"
+    "- find_recipes for food and drink that fit the theme.\n"
+    "- make_mood_board for decor and outfit inspiration.\n"
+    "- make_party_playlist for the music, with its decade for a throwback theme.\n"
+    "Rules:\n"
+    "- Call the matching tool every time the user asks about something, even if you called it earlier, "
+    "so they can see where your answer came from.\n"
+    "- If a tool needs the city, date or party length and you don't have it, ask first.\n"
+    "- Only use what the tools returned. Don't answer from memory, don't write out ingredients or steps "
+    "(link to the recipe instead), and only use links a tool gave you. If a tool returns an error, say so.\n"
+    "- Reply with a short plan in Markdown, without emojis. The chat already shows the songs and the mood "
+    "board images, so don't list them again."
 )
 MAX_TOOL_ROUNDS = 5
 
 # --- The Harness ---
 
 
-def run_agent(messages: list[dict]) -> tuple[str, list[dict]]:
+def run_agent(messages: list[dict], tool_calls: list[dict]) -> str:
     """Complete until the model answers without asking for a tool.
 
-    Returns the final text and a record of every tool call made along the way.
+    Returns the final text. Each tool call gets added to tool_calls as it happens, so chat()
+    still has them to show if a later model call blows up.
     """
-    tool_calls = []
-
     for _ in range(MAX_TOOL_ROUNDS):
         reply = litellm.completion(
             model="vertex_ai/gemini-3.5-flash-lite",
@@ -53,7 +56,7 @@ def run_agent(messages: list[dict]) -> tuple[str, list[dict]]:
         messages += [reply.model_dump()]
 
         if not reply.tool_calls:
-            return reply.content, tool_calls
+            return reply.content
 
         # The harness, not the model, runs each tool and appends the result
         for call in reply.tool_calls:
@@ -63,7 +66,7 @@ def run_agent(messages: list[dict]) -> tuple[str, list[dict]]:
 
             messages += [{"role": "tool", "tool_call_id": call.id, "content": result}]
 
-    return "Sorry, I hit my tool-call limit before finishing.", tool_calls
+    return "Sorry, I hit my tool-call limit before finishing."
 
 
 # --- Session Store ---
@@ -97,16 +100,20 @@ def chat(request: ChatRequest):
     # Get or create the session
     session_id = request.session_id or str(uuid.uuid4())
     if session_id not in sessions:
-        sessions[session_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        # fill in today's date here, not at startup, since the server can stay up for days
+        prompt = SYSTEM_PROMPT.format(today=date.today().isoformat())
+        sessions[session_id] = [{"role": "system", "content": prompt}]
 
     # Append user's message to the context
     sessions[session_id] += [{"role": "user", "content": request.message}]
 
+    tool_calls = []
     try:
-        response, tool_calls = run_agent(sessions[session_id])
+        response = run_agent(sessions[session_id], tool_calls)
     except Exception as e:
         # Auth, billing, a model that is not running: show it in the chat, not as a 500.
-        response, tool_calls = f"Model call failed: {type(e).__name__}: {str(e)[:300]}", []
+        # any tools that already ran are still in tool_calls, so their cards still show up
+        response = f"Model call failed: {type(e).__name__}: {str(e)[:300]}"
 
     return ChatResponse(response=response, session_id=session_id, tool_calls=tool_calls)
 
@@ -118,4 +125,6 @@ def clear(session_id: str | None = None):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # Cloud Run tells us which port to use with $PORT (locally it's just 8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

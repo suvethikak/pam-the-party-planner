@@ -17,16 +17,12 @@
                 --bg: #f4efe8;
                 --panel: #fffdf9;
                 --panel-edge: #e7dfd3;
-                --text: #2f2a26;
-                --muted: #8c8278;
                 --ink: #2f2a26;
+                --muted: #8c8278;
                 --blush: #e3a9ae;
                 --butter: #e6c873;
                 --sage: #9fb19a;
                 --taupe: #a8968a;
-                --silver: #9ea3ab;
-                --pine: #55705a;
-                --wash: #f6f1ea;
                 --error: #c0504d;
             }
             * {
@@ -36,7 +32,7 @@
             }
             body {
                 font-family: "DM Sans", system-ui, sans-serif;
-                color: var(--text);
+                color: var(--ink);
                 background:
                     radial-gradient(ellipse at 50% 110%, rgba(255, 214, 150, 0.35), transparent 55%),
                     radial-gradient(ellipse at 50% -20%, #ffffff, transparent 60%),
@@ -50,7 +46,7 @@
                 overflow-x: hidden;
             }
 
-            /* --- Background: silver paper stars hanging on threads --- */
+            /* --- Background: silver paper stars hanging on strings --- */
 
             #stars {
                 position: fixed;
@@ -65,8 +61,6 @@
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                transform-origin: top center;
-                animation: sway ease-in-out infinite alternate;
             }
             .hanging-star::before {
                 content: "";
@@ -74,25 +68,12 @@
                 height: var(--thread);
                 background: rgba(120, 108, 96, 0.35);
             }
-            .hanging-star span {
+            .hanging-star::after {
+                content: "";
                 width: var(--size);
                 height: var(--size);
                 clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
                 background: linear-gradient(135deg, #fbfbfb, #b9bdc4 45%, #eceef1 60%, #8f949c);
-            }
-            @keyframes sway {
-                from {
-                    transform: rotate(-3deg);
-                }
-                to {
-                    transform: rotate(3deg);
-                }
-            }
-            @keyframes twinkle {
-                50% {
-                    opacity: 0.9;
-                    transform: scale(1.4);
-                }
             }
 
             /* --- Chat panel --- */
@@ -120,8 +101,6 @@
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                transform-origin: top center;
-                animation: swing 4s ease-in-out infinite;
                 z-index: 3;
             }
             .disco-wrap::before {
@@ -143,12 +122,6 @@
                 box-shadow:
                     inset -10px -12px 20px rgba(0, 0, 0, 0.35),
                     0 10px 24px rgba(60, 45, 30, 0.18);
-                animation: spin 3s linear infinite;
-            }
-            @keyframes spin {
-                to {
-                    background-position: 0 0, 0 0, 64px 0, 0 0;
-                }
             }
             .disco::after {
                 content: "✦";
@@ -158,16 +131,6 @@
                 font-size: 14px;
                 color: #fff;
                 text-shadow: 0 0 6px #fff;
-                animation: twinkle 1.6s ease-in-out infinite;
-            }
-            @keyframes swing {
-                0%,
-                100% {
-                    transform: rotate(5deg);
-                }
-                50% {
-                    transform: rotate(-5deg);
-                }
             }
 
             /* --- Header --- */
@@ -178,7 +141,7 @@
             }
             header h1,
             .tagline {
-                /* Leave room for the disco ball */
+                /* make room for the disco ball */
                 padding-right: 7rem;
             }
             header h1 {
@@ -218,7 +181,7 @@
             .chip {
                 font: inherit;
                 font-size: 0.85rem;
-                color: var(--text);
+                color: var(--ink);
                 background: var(--panel);
                 border: 1px solid var(--panel-edge);
                 border-radius: 999px;
@@ -228,7 +191,7 @@
             }
             .chip:hover {
                 border-color: var(--blush);
-                background: #fbeff0;
+                background: var(--bg);
             }
 
             /* --- Messages --- */
@@ -247,23 +210,16 @@
                 max-width: 82%;
                 padding: 0.8rem 1.1rem;
                 border-radius: 18px;
-                animation: pop 0.25s ease-out;
-            }
-            @keyframes pop {
-                from {
-                    opacity: 0;
-                    transform: translateY(6px) scale(0.98);
-                }
             }
             .msg.user {
                 align-self: flex-end;
                 background: var(--ink);
                 border-bottom-right-radius: 6px;
-                color: #fbf7f1;
+                color: var(--panel);
             }
             .msg.assistant {
                 align-self: flex-start;
-                background: var(--wash);
+                background: var(--bg);
                 border: 1px solid var(--panel-edge);
                 border-bottom-left-radius: 6px;
             }
@@ -279,7 +235,7 @@
                 word-break: break-word;
             }
 
-            /* Rendered Markdown answers */
+            /* Pam's answers (Markdown) */
             .msg .content.md {
                 white-space: normal;
             }
@@ -291,7 +247,7 @@
             .content.md h3 {
                 font-size: 1rem;
                 font-weight: 600;
-                color: var(--pine);
+                color: var(--ink);
                 margin-top: 1rem;
             }
             .content.md h1 {
@@ -314,7 +270,7 @@
                 font-weight: 600;
             }
 
-            /* Loading: a tiny spinning disco ball */
+            /* loading spinner = a tiny disco ball */
             .mini-disco {
                 display: inline-block;
                 width: 18px;
@@ -355,7 +311,6 @@
                 border: 1px solid var(--panel-edge);
                 border-left: 3px solid var(--accent, var(--taupe));
                 font-size: 0.85rem;
-                animation: pop 0.25s ease-out;
             }
             .tool summary {
                 cursor: pointer;
@@ -373,7 +328,6 @@
                 content: "▸";
                 margin-left: auto;
                 color: var(--muted);
-                transition: transform 0.15s;
             }
             .tool[open] > summary::after {
                 transform: rotate(90deg);
@@ -391,10 +345,10 @@
                 margin: 0 0.8rem 0.7rem;
                 padding: 0.6rem 0.75rem;
                 border-radius: 8px;
-                background: var(--wash);
+                background: var(--bg);
                 font-family: ui-monospace, monospace;
                 font-size: 0.75rem;
-                color: #5b524a;
+                color: var(--ink);
                 white-space: pre-wrap;
                 word-break: break-word;
                 max-height: 260px;
@@ -404,7 +358,23 @@
                 --accent: var(--error);
             }
 
-            /* --- Playlist inside a make_party_playlist card --- */
+            /* --- Mood board card --- */
+
+            .mood-board {
+                margin: 0 0.8rem 0.7rem;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 0.4rem;
+            }
+            .mood-board img {
+                display: block;
+                width: 100%;
+                aspect-ratio: 1;
+                object-fit: cover;
+                border-radius: 8px;
+            }
+
+            /* --- Playlist card --- */
 
             .playlist {
                 margin: 0 0.8rem 0.7rem;
@@ -432,7 +402,7 @@
             .copy-btn {
                 font: inherit;
                 font-size: 0.75rem;
-                color: var(--text);
+                color: var(--ink);
                 background: var(--panel);
                 border: 1px solid var(--panel-edge);
                 border-radius: 999px;
@@ -445,10 +415,10 @@
                 gap: 0.6rem;
                 padding: 0.35rem 0.5rem;
                 border-radius: 10px;
-                background: var(--wash);
+                background: var(--bg);
             }
             .song.playing {
-                background: #fbeff0;
+                background: var(--bg);
             }
             .song img {
                 width: 40px;
@@ -463,7 +433,7 @@
                 border: none;
                 border-radius: 50%;
                 background: var(--ink);
-                color: #fbf7f1;
+                color: var(--panel);
                 font-size: 0.75rem;
                 cursor: pointer;
             }
@@ -491,14 +461,6 @@
                 font-size: 0.75rem;
             }
 
-            /* The disco ball spins faster while a song preview plays */
-            body.music .disco {
-                animation-duration: 0.8s;
-            }
-            body.music .disco-wrap {
-                animation-duration: 1.2s;
-            }
-
             /* --- Input --- */
 
             #input-area {
@@ -513,8 +475,8 @@
                 padding: 0.8rem 1.1rem;
                 border-radius: 999px;
                 border: 1px solid var(--panel-edge);
-                background: var(--wash);
-                color: var(--text);
+                background: var(--bg);
+                color: var(--ink);
                 font: inherit;
                 font-size: 1rem;
                 outline: none;
@@ -535,27 +497,15 @@
                 border: none;
                 border-radius: 999px;
                 cursor: pointer;
-                color: #fbf7f1;
+                color: var(--panel);
                 background: var(--ink);
-                transition: transform 0.15s;
             }
             #send-btn:hover:not(:disabled) {
-                background: #4a423b;
+                opacity: 0.85;
             }
             button:disabled {
                 opacity: 0.4;
                 cursor: default;
-            }
-
-            /* --- Respect reduced-motion settings --- */
-
-            @media (prefers-reduced-motion: reduce) {
-                .hanging-star,
-                .disco,
-                .disco-wrap,
-                .disco::after {
-                    animation: none;
-                }
             }
 
             @media (max-width: 640px) {
@@ -580,7 +530,7 @@
                     margin-top: 0.75rem;
                     gap: 0.6rem;
                 }
-                /* One row of sample prompts that scrolls sideways */
+                /* sample prompts in one row you can scroll sideways */
                 .chips {
                     flex-wrap: nowrap;
                     overflow-x: auto;
@@ -619,8 +569,8 @@
             <header>
                 <h1>Hi, I'm Pam! Let's plan your party.</h1>
                 <p class="tagline">
-                    Tell me when and where it's happening, roughly how many guests you're expecting, and any theme you have in mind.
-                    I'll check the forecast, suggest food and drinks, figure out how much to buy, and put together a playlist you can preview right here.
+                    Tell me when and where it's happening, how long it lasts, and any theme you have in mind.
+                    I'll check the forecast, suggest food and drinks, make a mood board, and put together a playlist you can preview right here.
                 </p>
                 <div class="header-row">
                     <div class="chips" id="chips"></div>
@@ -643,19 +593,19 @@
             const sendBtn = document.getElementById("send-btn");
             let sessionId = null;
 
-            // How each tool shows up in the chat
+            // label + color for each tool's card
             const TOOL_STYLE = {
-                get_weather: { label: "Check current weather", color: "#9ea3ab" },
-                check_party_date: { label: "Forecast for party date", color: "#9fb19a" },
-                find_recipes: { label: "Food and drink ideas", color: "#e3a9ae" },
-                estimate_supplies: { label: "Estimated supplies", color: "#e6c873" },
-                make_party_playlist: { label: "Party playlist", color: "#a8968a" },
+                get_weather: { label: "Check current weather", color: "var(--sage)" },
+                check_party_date: { label: "Forecast for party date", color: "var(--sage)" },
+                find_recipes: { label: "Food and drink ideas", color: "var(--blush)" },
+                make_mood_board: { label: "Mood board", color: "var(--butter)" },
+                make_party_playlist: { label: "Party playlist", color: "var(--taupe)" },
             };
 
             const SAMPLES = [
-                "Mexican rooftop dinner in New York this Saturday for 20 people",
-                "90s throwback birthday in Chicago this Saturday, 15 people, 3 hours",
-                "How many drinks should I buy for a housewarming with 30 people?",
+                "Rooftop dinner in New York this Saturday with Italian food",
+                "Karaoke birthday in Chicago next week, 3 hours",
+                "Give me ideas for a 70s disco housewarming party",
             ];
 
             // --- Background decorations ---
@@ -664,7 +614,7 @@
                 return min + Math.random() * (max - min);
             }
 
-            // Silver paper stars on threads of different lengths, like a garland hung from the ceiling
+            // silver stars hanging on strings of random lengths, like a garland
             const stars = document.getElementById("stars");
             for (let i = 0; i < 16; i++) {
                 const star = document.createElement("div");
@@ -672,9 +622,6 @@
                 star.style.left = (i + rand(0.1, 0.9)) * (100 / 16) + "%";
                 star.style.setProperty("--thread", rand(10, 170) + "px");
                 star.style.setProperty("--size", rand(18, 34) + "px");
-                star.style.animationDuration = rand(3, 6) + "s";
-                star.style.animationDelay = -rand(0, 6) + "s";
-                star.appendChild(document.createElement("span"));
                 stars.appendChild(star);
             }
 
@@ -705,7 +652,7 @@
                 const content = div.querySelector(".content");
                 content.innerHTML =
                     '<span class="mini-disco"></span>' +
-                    '<span class="loading-text">Planning the party...</span>';
+                    '<span class="loading-text">Planning...</span>';
                 return div;
             }
 
@@ -718,7 +665,7 @@
             }
 
             function toolCard(call) {
-                const style = TOOL_STYLE[call.name] || { label: call.name, color: "#a8968a" };
+                const style = TOOL_STYLE[call.name] || { label: call.name, color: "var(--taupe)" };
                 let pretty = call.result;
                 let isError = false;
                 try {
@@ -743,21 +690,52 @@
                 const pre = document.createElement("pre");
                 pre.textContent = pretty;
 
-                if (!isError && call.name === "make_party_playlist") {
-                    const raw = document.createElement("details");
-                    raw.className = "raw";
-                    const rawSummary = document.createElement("summary");
-                    rawSummary.textContent = "Raw result";
-                    raw.append(rawSummary, pre);
-                    card.open = true;
-                    card.append(summary, playlistView(JSON.parse(call.result)), raw);
-                    return card;
-                }
+                // playlist and mood board get a fancier view. if that breaks for some reason,
+                // just show the plain card so the tool call still shows up
+                try {
+                    if (!isError && call.name === "make_party_playlist") {
+                        const view = playlistView(JSON.parse(call.result));
+                        const raw = document.createElement("details");
+                        raw.className = "raw";
+                        const rawSummary = document.createElement("summary");
+                        rawSummary.textContent = "Raw result";
+                        raw.append(rawSummary, pre);
+                        card.open = true;
+                        card.append(summary, view, raw);
+                        return card;
+                    }
+                    if (!isError && call.name === "make_mood_board") {
+                        const view = moodBoard(JSON.parse(call.result).images);
+                        card.open = true;
+                        card.append(summary, view, pre);
+                        return card;
+                    }
+                } catch (e) {}
                 card.append(summary, pre);
                 return card;
             }
 
-            // --- Song previews: one shared player, so starting a song stops the last one ---
+            // grid of images, each one links to where it came from on Are.na
+            function moodBoard(images) {
+                const grid = document.createElement("div");
+                grid.className = "mood-board";
+                for (const image of images) {
+                    const link = document.createElement("a");
+                    link.href = image.link;
+                    link.target = "_blank";
+                    link.rel = "noopener";
+                    link.title = "From the Are.na board " + image.board;
+                    const img = document.createElement("img");
+                    img.src = image.image;
+                    img.alt = link.title;
+                    img.loading = "lazy";
+                    link.appendChild(img);
+                    grid.appendChild(link);
+                }
+                return grid;
+            }
+
+            // --- Song previews: one shared player, so playing a song stops the last one ---
 
             const audio = new Audio();
             let playingRow = null;
@@ -769,7 +747,6 @@
                     playingRow.querySelector(".play").textContent = "▶";
                 }
                 playingRow = null;
-                document.body.classList.remove("music");
             }
             audio.addEventListener("ended", stopSong);
 
@@ -782,7 +759,6 @@
                 playingRow = row;
                 row.classList.add("playing");
                 row.querySelector(".play").textContent = "❚❚";
-                document.body.classList.add("music");
             }
 
             function songRow(song) {
@@ -913,7 +889,7 @@
 
             addMessage(
                 "assistant",
-                "What are we celebrating? Share the city, date, number of guests and theme, " +
+                "What are we celebrating? Share the city, date, how long it lasts and the theme, " +
                     "or pick one of the ideas above to get started.",
             );
 
