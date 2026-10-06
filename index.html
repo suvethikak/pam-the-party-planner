@@ -851,7 +851,7 @@
 
                 userInput.value = "";
                 sendBtn.disabled = true;
-                addMessage("you", text);
+                const question = addMessage("you", text);
                 const loading = addLoading();
 
                 try {
@@ -878,7 +878,10 @@
                 } catch (e) {
                     loading.querySelector(".content").textContent = "Error: " + e.message;
                 }
-                scroller.scrollTop = scroller.scrollHeight;
+                // start at the question so a long answer reads from the top, not the end.
+                // the gap keeps the question clear of the disco ball
+                scroller.scrollTop +=
+                    question.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 56;
                 sendBtn.disabled = false;
                 userInput.focus();
             }
