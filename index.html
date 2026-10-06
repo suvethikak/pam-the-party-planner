@@ -196,14 +196,19 @@
 
             /* --- Messages --- */
 
-            #messages {
+            /* the intro and the messages scroll together, so the intro is only at the top of the chat */
+            #scroll {
                 flex: 1;
+                min-height: 0;
                 overflow-y: auto;
+                border-radius: 18px 18px 0 0;
+                scrollbar-color: rgba(60, 45, 30, 0.2) transparent;
+            }
+            #messages {
                 padding: 1.5rem 2rem;
                 display: flex;
                 flex-direction: column;
                 gap: 1rem;
-                scrollbar-color: rgba(60, 45, 30, 0.2) transparent;
             }
             .msg {
                 line-height: 1.55;
@@ -566,17 +571,19 @@
 
         <div id="container">
             <div class="disco-wrap" aria-hidden="true"><div class="disco"></div></div>
-            <header>
-                <h1>Hi, I'm Pam! Let's plan your party.</h1>
-                <p class="tagline">
-                    Tell me when and where it's happening, how long it lasts, and any theme you have in mind.
-                    I'll check the forecast, suggest food and drinks, make a mood board, and put together a playlist you can preview right here.
-                </p>
-                <div class="header-row">
-                    <div class="chips" id="chips"></div>
-                </div>
-            </header>
-            <div id="messages" aria-live="polite"></div>
+            <div id="scroll">
+                <header>
+                    <h1>Hi, I'm Pam! Let's plan your party.</h1>
+                    <p class="tagline">
+                        Tell me when and where it's happening, how long it lasts, and any theme you have in mind.
+                        I'll check the forecast, suggest food and drinks, make a mood board, and put together a playlist you can preview right here.
+                    </p>
+                    <div class="header-row">
+                        <div class="chips" id="chips"></div>
+                    </div>
+                </header>
+                <div id="messages" aria-live="polite"></div>
+            </div>
             <div id="input-area">
                 <input
                     type="text"
@@ -589,6 +596,7 @@
         </div>
         <script>
             const messages = document.getElementById("messages");
+            const scroller = document.getElementById("scroll");
             const userInput = document.getElementById("user-input");
             const sendBtn = document.getElementById("send-btn");
             let sessionId = null;
@@ -638,7 +646,7 @@
                 content.textContent = text;
                 div.append(roleEl, content);
                 messages.appendChild(div);
-                messages.scrollTop = messages.scrollHeight;
+                scroller.scrollTop = scroller.scrollHeight;
                 return div;
             }
 
@@ -870,7 +878,7 @@
                 } catch (e) {
                     loading.querySelector(".content").textContent = "Error: " + e.message;
                 }
-                messages.scrollTop = messages.scrollHeight;
+                scroller.scrollTop = scroller.scrollHeight;
                 sendBtn.disabled = false;
                 userInput.focus();
             }
