@@ -6,11 +6,11 @@ from pathlib import Path
 
 import litellm
 import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
-from tools import TOOLS, run_tool
+from tools import TOOLS, invitation_art, run_tool
 
 # --- Config ---
 
@@ -22,25 +22,35 @@ SYSTEM_PROMPT = (
     "- find_recipes for food and drink that fit the theme.\n"
     "- make_mood_board for decor and outfit inspiration.\n"
     "- make_party_playlist for the music, with its decade for a throwback theme.\n"
+    "- find_restaurants for restaurants near the party, only when the user asks about restaurants, catering "
+    "or ordering food.\n"
+    "- make_invitation for an invitation with artwork, only when the user asks for an invitation.\n"
     "First decide what the user is asking for, then call only the tools for that:\n"
     "- A whole party: they describe a party or ask for ideas or a plan, without asking about one part of it. "
     "A cuisine, theme, city or date in the description doesn't make it a question about one part. "
     "Call every tool that applies: check_party_date (if it's outdoors and you have the city and date), "
     "find_recipes for food and for drinks, make_mood_board and make_party_playlist. "
+    "Don't call find_restaurants or make_invitation for this. Instead, end the plan with one line saying you "
+    "can also find nearby restaurants to order from and make an invitation. "
     "E.g. 'Rooftop dinner in New York this Saturday with Italian food'.\n"
-    "- One part: they ask about just the music, the food, the drinks, the weather or date, or the decor, "
-    "or want to change one part of an earlier plan. Call only the tool for that part and leave the rest out, "
-    "even if they also mention the city, date or theme. "
+    "- One part: they ask about just the music, the food, the drinks, the weather or date, the decor, "
+    "restaurants or the invitation, or want to change one part of an earlier plan. Call only the tool for that "
+    "part and leave the rest out, even if they also mention the city, date or theme. "
     "E.g. 'I'm having a rooftop dinner in New York on Saturday, what Italian food should I make?' is only "
     "find_recipes, and 'change the music to 90s hip hop' is only make_party_playlist.\n"
     "Rules:\n"
     "- Call the tool for what the user asked about every time, even if you called it earlier, "
     "so they can see where your answer came from.\n"
-    "- If a tool needs the city, date or party length and you don't have it, ask first.\n"
+    "- If a tool needs the city, date or party length and you don't have it, ask first. "
+    "Use what the user already told you earlier in the chat instead of asking again.\n"
+    "- Before make_invitation, check the user has typed a clock time for the start, like '7pm'. 'Dinner' or "
+    "'evening' is not a start time. If they haven't, don't call the tool: ask what time it starts. "
+    "E.g. after planning a dinner with no time given, 'make an invitation for it' gets the reply "
+    "'What time does it start?'\n"
     "- Only use what the tools returned. Don't answer from memory, don't write out ingredients or steps "
     "(link to the recipe instead), and only use links a tool gave you. If a tool returns an error, say so.\n"
-    "- Reply with a short plan in Markdown, without emojis. The chat already shows the songs and the mood "
-    "board images, so don't list them again."
+    "- Reply with a short plan in Markdown, without emojis. The chat already shows the songs, the mood "
+    "board images and the invitation, so don't list or repeat them."
 )
 MAX_TOOL_ROUNDS = 5
 
@@ -104,6 +114,16 @@ class ChatResponse(BaseModel):
 @app.get("/")
 def index():
     return FileResponse(Path(__file__).parent / "index.html")
+
+
+@app.get("/invitation-art/{art_id}")
+def invitation_artwork(art_id: str):
+    # make_invitation keeps the artwork in memory and only hands the page this link to it
+    if art_id not in invitation_art:
+        raise HTTPException(status_code=404, detail="No artwork with that id.")
+    image = invitation_art[art_id]
+    kind = "image/png" if image.startswith(b"\x89PNG") else "image/jpeg"
+    return Response(content=image, media_type=kind)
 
 
 @app.post("/chat", response_model=ChatResponse)

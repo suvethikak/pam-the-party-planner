@@ -7,11 +7,12 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
-            href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap"
+            href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Playfair+Display:ital,wght@0,600;1,500&display=swap"
             rel="stylesheet"
         />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <style>
             :root {
                 --bg: #f4efe8;
@@ -379,6 +380,89 @@
                 border-radius: 8px;
             }
 
+            /* --- Invitation card --- */
+
+            .invitation-wrap {
+                margin: 0 0.8rem 0.7rem;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.6rem;
+            }
+            .invitation {
+                width: 100%;
+                max-width: 340px;
+                aspect-ratio: 3 / 4;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 9%;
+                border-radius: 14px;
+                /* shown until the artwork loads, and when there is none */
+                background-color: var(--blush);
+                background-image: linear-gradient(160deg, var(--butter), var(--blush) 55%, var(--taupe));
+                background-size: cover;
+                background-position: center;
+            }
+            /* the words sit on their own panel so they stay readable on any artwork */
+            .invite-panel {
+                width: 100%;
+                padding: 1.4rem 1rem;
+                border-radius: 10px;
+                background: rgba(255, 253, 249, 0.92);
+                color: var(--ink);
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                gap: 0.3rem;
+                overflow-wrap: anywhere;
+            }
+            .invite-kicker {
+                font-size: 0.65rem;
+                text-transform: uppercase;
+                letter-spacing: 0.18em;
+                color: var(--muted);
+            }
+            .invite-title {
+                font-family: "Playfair Display", Georgia, serif;
+                font-weight: 600;
+                font-size: 1.45rem;
+                line-height: 1.15;
+            }
+            .invite-rule {
+                width: 2.2rem;
+                height: 1px;
+                margin: 0.35rem auto;
+                background: var(--taupe);
+            }
+            .invite-when {
+                font-weight: 600;
+                font-size: 0.85rem;
+            }
+            .invite-where {
+                font-size: 0.82rem;
+            }
+            .invite-note {
+                margin-top: 0.3rem;
+                font-family: "Playfair Display", Georgia, serif;
+                font-style: italic;
+                font-size: 0.85rem;
+            }
+            .invite-host {
+                margin-top: 0.3rem;
+                font-size: 0.7rem;
+                color: var(--muted);
+            }
+            .invite-actions {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 0.4rem;
+            }
+            .invite-actions a {
+                text-decoration: none;
+            }
+
             /* --- Playlist card --- */
 
             .playlist {
@@ -577,6 +661,7 @@
                     <p class="tagline">
                         Tell me when and where it's happening, how long it lasts, and any theme you have in mind.
                         I'll check the forecast, suggest food and drinks, make a mood board, and put together a playlist you can preview right here.
+                    Ask me for an invitation or for restaurants nearby, too.
                     </p>
                     <div class="header-row">
                         <div class="chips" id="chips"></div>
@@ -608,6 +693,8 @@
                 find_recipes: { label: "Food and drink ideas", color: "var(--blush)" },
                 make_mood_board: { label: "Mood board", color: "var(--butter)" },
                 make_party_playlist: { label: "Party playlist", color: "var(--taupe)" },
+                find_restaurants: { label: "Nearby restaurants", color: "var(--blush)" },
+                make_invitation: { label: "Invitation", color: "var(--butter)" },
             };
 
             const SAMPLES = [
@@ -712,6 +799,17 @@
                         card.append(summary, view, raw);
                         return card;
                     }
+                    if (!isError && call.name === "make_invitation") {
+                        const view = invitationView(JSON.parse(call.result));
+                        const raw = document.createElement("details");
+                        raw.className = "raw";
+                        const rawSummary = document.createElement("summary");
+                        rawSummary.textContent = "Raw result";
+                        raw.append(rawSummary, pre);
+                        card.open = true;
+                        card.append(summary, view, raw);
+                        return card;
+                    }
                     if (!isError && call.name === "make_mood_board") {
                         const view = moodBoard(JSON.parse(call.result).images);
                         card.open = true;
@@ -741,6 +839,114 @@
                     grid.appendChild(link);
                 }
                 return grid;
+            }
+
+            // --- Invitation: the words go on top of the artwork, so they're always spelled right ---
+
+            function inviteLine(className, text) {
+                const line = document.createElement("div");
+                line.className = className;
+                line.textContent = text;
+                return line;
+            }
+
+            // calendar files want 20261010T183000, and commas and line breaks escaped
+            function icsFile(invite) {
+                const stamp = (iso) => iso.replace(/[-:]/g, "").slice(0, 15);
+                const clean = (text) => (text || "").replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+                return [
+                    "BEGIN:VCALENDAR",
+                    "VERSION:2.0",
+                    "PRODID:-//Pam the Party Planner//EN",
+                    "BEGIN:VEVENT",
+                    "UID:" + Date.now() + "@pam-the-party-planner",
+                    "DTSTAMP:" + stamp(new Date().toISOString()) + "Z",
+                    "DTSTART:" + stamp(invite.starts),
+                    "DTEND:" + stamp(invite.ends),
+                    "SUMMARY:" + clean(invite.title),
+                    "LOCATION:" + clean(invite.location),
+                    "DESCRIPTION:" + clean(invite.note),
+                    "END:VEVENT",
+                    "END:VCALENDAR",
+                ].join("\r\n");
+            }
+
+            function download(href, filename) {
+                const link = document.createElement("a");
+                link.href = href;
+                link.download = filename;
+                link.click();
+            }
+
+            function invitationView(invite) {
+                const wrap = document.createElement("div");
+                wrap.className = "invitation-wrap";
+
+                const card = document.createElement("div");
+                card.className = "invitation";
+                // only our own artwork links, nothing else, goes into the style
+                if (/^\/invitation-art\/[0-9a-f]+$/.test(invite.art || "")) {
+                    card.style.backgroundImage = "url(" + invite.art + ")";
+                }
+
+                const panel = document.createElement("div");
+                panel.className = "invite-panel";
+                panel.append(
+                    inviteLine("invite-kicker", "You're invited"),
+                    inviteLine("invite-title", invite.title),
+                    inviteLine("invite-rule", ""),
+                    inviteLine("invite-when", invite.date_text),
+                    inviteLine("invite-when", invite.time_text),
+                    inviteLine("invite-where", invite.location),
+                );
+                if (invite.note) panel.appendChild(inviteLine("invite-note", invite.note));
+                if (invite.host) panel.appendChild(inviteLine("invite-host", "Hosted by " + invite.host));
+                card.appendChild(panel);
+
+                const actions = document.createElement("div");
+                actions.className = "invite-actions";
+
+                const save = document.createElement("button");
+                save.type = "button";
+                save.className = "copy-btn";
+                save.textContent = "Save as image";
+                save.addEventListener("click", async function () {
+                    save.textContent = "Saving...";
+                    try {
+                        const canvas = await html2canvas(card, { scale: 3, backgroundColor: null });
+                        download(canvas.toDataURL("image/png"), "invitation.png");
+                        save.textContent = "Saved!";
+                    } catch (e) {
+                        save.textContent = "Save failed";
+                    }
+                    setTimeout(() => (save.textContent = "Save as image"), 1500);
+                });
+                actions.appendChild(save);
+
+                if ((invite.calendar_link || "").startsWith("https://calendar.google.com/")) {
+                    const calendar = document.createElement("a");
+                    calendar.className = "copy-btn";
+                    calendar.href = invite.calendar_link;
+                    calendar.target = "_blank";
+                    calendar.rel = "noopener";
+                    calendar.textContent = "Add to Google Calendar";
+                    actions.appendChild(calendar);
+                }
+
+                const ics = document.createElement("button");
+                ics.type = "button";
+                ics.className = "copy-btn";
+                ics.textContent = "Download .ics";
+                ics.addEventListener("click", function () {
+                    const file = new Blob([icsFile(invite)], { type: "text/calendar" });
+                    const url = URL.createObjectURL(file);
+                    download(url, "party.ics");
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                });
+                actions.appendChild(ics);
+
+                wrap.append(card, actions);
+                return wrap;
             }
 
             // --- Song previews: one shared player, so playing a song stops the last one ---
