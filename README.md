@@ -4,7 +4,8 @@ The holiday season coming up means plenty of events to host and attend. While th
 
 You can tell her the occasion, city, date, party length and theme, and she can check the forecast for your date, and suggests backup dates if it looks bad, find food and cocktail recipes that match your theme, make a mood board of images for inspiration, and builds a playlist of real songs based on your specifications that you can preview right in the chat. She can also find you restaurants where you can host your event and create an invitation with your party details.
 
-## Pam has 7 tools
+## Tools
+Our agent has 7 tools in total: 
 
 1. get_weater: gets the weather from OpenMeteo based on the city and date
 2. check_party_date: gets the full 16 day forecast and checks the party day - in the case that the weather is bad, it lists the problems and offers up to 3 backup dates with good weather
