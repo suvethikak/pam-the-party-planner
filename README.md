@@ -4,6 +4,12 @@ The holiday season coming up means plenty of events to host and attend. While th
 
 You can tell her the occasion, city, date, party length and theme, and she can check the forecast for your date, and suggests backup dates if it looks bad, find food and cocktail recipes that match your theme, make a mood board of images for inspiration, and builds a playlist of real songs based on your specifications that you can preview right in the chat. She can also find you restaurants where you can host your event and create an invitation with your party details.
 
+Pam only runs the tools for what you ask about, so a follow-up like "change the music to 90s hip hop" only
+rebuilds the playlist. Two tools only run when asked for. Good follow-ups to try after the first query:
+
+- "Make an invitation for it. It starts at 7pm at 55 Water St, Brooklyn."
+- "Are there Italian restaurants nearby I could order from instead?"
+
 ## Tools
 Our agent has 7 tools in total: 
 

@@ -1,8 +1,16 @@
 """The tools the harness can run, and the JSON that describes them to the model."""
 
+import base64
 import json
+import math
 import random
+import re
+import uuid
+from datetime import datetime, timedelta
+from urllib.parse import quote_plus, urlencode
 
+import google.auth
+import litellm
 import requests
 
 # all of these APIs are free and don't need a key (the "1" in the recipe URLs is their public test key)
@@ -12,6 +20,18 @@ MEAL_URL = "https://www.themealdb.com/api/json/v1/1"
 COCKTAIL_URL = "https://www.thecocktaildb.com/api/json/v1/1"
 ITUNES_URL = "https://itunes.apple.com/search"
 ARENA_URL = "https://api.are.na/v2"
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# OpenStreetMap asks every app to say who it is
+OSM_HEADERS = {"User-Agent": "pam-the-party-planner (class project)"}
+
+# the first one is fast and cheap but only allows a few images a minute, so there's a backup
+ART_MODELS = ["vertex_ai/gemini-3.1-flash-lite-image", "vertex_ai/gemini-3.1-flash-image"]
+# invitation artwork: art id -> image bytes. In-memory like the sessions in app.py, which serves these.
+# The image can't go in the tool result: that goes back to the model, and an image is far too big for it.
+invitation_art: dict[str, bytes] = {}
+# map searches we've already done: query -> places found, so asking again doesn't use up the map server
+restaurant_searches: dict[str, list] = {}
 
 
 def get_weather(location: str, date: str | None = None) -> str:
@@ -280,6 +300,171 @@ def make_party_playlist(searches: list, hours: float, decade: int | None = None)
     })
 
 
+def find_restaurants(location: str, cuisine: str | None = None) -> str:
+    """Finds restaurants near the party to cater or order from, using OpenStreetMap."""
+    # letters only, so whatever the model sends can't change the map query. OpenStreetMap writes "ice_cream"
+    cuisine = re.sub(r"[^a-z ]", "", (cuisine or "").lower()).strip().replace(" ", "_")
+    note = None
+
+    try:
+        response = requests.get(NOMINATIM_URL, params={"q": location, "format": "json", "limit": 1},
+                                headers=OSM_HEADERS, timeout=10)
+        if response.status_code != 200:
+            return json.dumps({"error": "The map service (OpenStreetMap) is busy right now. Don't call "
+                                        "find_restaurants again in this reply; tell the user to try again in a minute."})
+        places = response.json()
+        if not places:
+            return json.dumps({"error": f"Couldn't find '{location}'. Try a neighborhood and city, like 'East Village, New York'."})
+        lat, lon = float(places[0]["lat"]), float(places[0]["lon"])
+
+        # one cuisine: look up to 3 miles out. any cuisine: stay within a mile, or a city has far too many
+        if cuisine:
+            query = (f'[out:json][timeout:10];nwr["amenity"="restaurant"]["name"]["cuisine"~"{cuisine}",i]'
+                     f"(around:5000,{lat},{lon});out center tags 300;")
+        else:
+            query = f'[out:json][timeout:10];nwr["amenity"="restaurant"]["name"](around:1500,{lat},{lon});out center tags 300;'
+
+        if query not in restaurant_searches:
+            # Overpass can search by cuisine, but it's a shared free server that is often too busy to answer
+            try:
+                response = requests.post(OVERPASS_URL, data={"data": query}, headers=OSM_HEADERS, timeout=12)
+                if response.status_code == 200:
+                    restaurant_searches[query] = response.json()["elements"]
+            except requests.RequestException:
+                pass
+        found = restaurant_searches.get(query)
+
+        if found is None:
+            # backup: the place search can list restaurants in a box about a mile each way, but not by cuisine
+            box = f"{lon - 0.02},{lat + 0.015},{lon + 0.02},{lat - 0.015}"
+            nearby = requests.get(NOMINATIM_URL, headers=OSM_HEADERS, timeout=10, params={
+                "q": "[restaurant]", "viewbox": box, "bounded": 1, "limit": 40,
+                "format": "jsonv2", "extratags": 1, "addressdetails": 1,
+            }).json()
+            # put these in the same shape Overpass uses, so the rest of the function doesn't care where they came from
+            found = []
+            for place in nearby:
+                tags = {"name": place["name"], **(place.get("extratags") or {})}
+                if place["address"].get("road"):
+                    tags["addr:street"] = place["address"]["road"]
+                if place["address"].get("house_number"):
+                    tags["addr:housenumber"] = place["address"]["house_number"]
+                found.append({"lat": float(place["lat"]), "lon": float(place["lon"]), "tags": tags})
+            if cuisine:
+                matches = [place for place in found if cuisine in place["tags"].get("cuisine", "").lower()]
+                if matches:
+                    found = matches
+                elif found:
+                    note = (f"The search by cuisine is busy, so these are nearby restaurants of every kind, not only "
+                            f"{cuisine}. Say so, and point out any whose cuisine fits.")
+    except requests.RequestException as e:
+        return json.dumps({"error": f"Map service failed: {e}"})
+
+    if not found:
+        if cuisine:
+            return json.dumps({"error": f"No {cuisine} restaurants found within 3 miles of {location}. "
+                                        "Try again without a cuisine, or with a broader one."})
+        return json.dumps({"error": f"No restaurants found within a mile of {location}. Try a nearby city."})
+
+    restaurants = []
+    for place in found:
+        tags = place["tags"]
+        spot = place.get("center", place)  # buildings come with a center point instead of their own lat/lon
+        # distance in miles between two points on the globe (haversine formula)
+        lat1, lat2 = math.radians(lat), math.radians(spot["lat"])
+        a = (math.sin((lat2 - lat1) / 2) ** 2
+             + math.cos(lat1) * math.cos(lat2) * math.sin(math.radians(spot["lon"] - lon) / 2) ** 2)
+        miles = 3959 * 2 * math.asin(math.sqrt(a))
+
+        address = " ".join(tags[key] for key in ("addr:housenumber", "addr:street") if key in tags)
+        restaurant = {
+            "name": tags["name"],
+            "cuisine": tags.get("cuisine", "").replace(";", ", ").replace("_", " "),
+            "distance_miles": round(miles, 1),
+            "address": address,
+            "website": tags.get("website") or tags.get("contact:website"),
+            "phone": tags.get("phone") or tags.get("contact:phone"),
+            "opening_hours": tags.get("opening_hours"),
+            "takeaway": tags.get("takeaway"),
+            "delivery": tags.get("delivery"),
+            "map_link": "https://www.google.com/maps/search/?api=1&query=" + quote_plus(f"{tags['name']} {address or location}"),
+        }
+        # leave out whatever the map doesn't know, so the model doesn't see a pile of nulls
+        restaurants.append({key: value for key, value in restaurant.items() if value})
+
+    # places you can actually contact first, then the closest
+    restaurants.sort(key=lambda r: ("website" not in r and "phone" not in r, r.get("distance_miles", 0)))
+    result = {"near": places[0]["display_name"], "cuisine": cuisine or "any", "restaurants": restaurants[:8]}
+    if note:
+        result["note"] = note
+    return json.dumps(result)
+
+
+def make_invitation(title: str, date: str, start_time: str, location: str, theme: str,
+                    end_time: str | None = None, host: str | None = None, note: str | None = None) -> str:
+    """Makes an invitation for the party, with AI artwork for the theme."""
+    try:
+        start = datetime.strptime(f"{date} {start_time}", "%Y-%m-%d %H:%M")
+        end = datetime.strptime(f"{date} {end_time}", "%Y-%m-%d %H:%M") if end_time else None
+    except ValueError:
+        return json.dumps({"error": "date must be YYYY-MM-DD and times HH:MM in 24 hour time, like 2026-10-10 and 18:30."})
+    if end and end <= start:
+        end += timedelta(days=1)  # runs past midnight
+
+    time_text = start.strftime("%-I:%M %p")
+    if end:
+        time_text += " to " + end.strftime("%-I:%M %p")
+
+    # the calendar event needs an end, so guess 3 hours if we weren't given one
+    calendar_end = end or start + timedelta(hours=3)
+    calendar_link = "https://calendar.google.com/calendar/render?" + urlencode({
+        "action": "TEMPLATE",
+        "text": title,
+        "dates": f"{start:%Y%m%dT%H%M%S}/{calendar_end:%Y%m%dT%H%M%S}",
+        "location": location,
+        "details": note or "",
+    })
+
+    result = {
+        "title": title,
+        "date_text": start.strftime("%A, %B %-d, %Y"),
+        "time_text": time_text,
+        "location": location,
+        "host": host,
+        "note": note,
+        "theme": theme,
+        "starts": start.isoformat(),
+        "ends": calendar_end.isoformat(),
+        "calendar_link": calendar_link,
+        "art": None,
+    }
+
+    # the page puts the words on top of the art, so the art must not have any (image models misspell them)
+    prompt = (f"Illustrated background for a party invitation. Theme: {theme}. Elegant, festive, "
+              "detail around the edges and a calmer middle. No text, no letters, no numbers, no people.")
+    for model in ART_MODELS:
+        try:
+            image = litellm.image_generation(
+                model=model,
+                prompt=prompt,
+                vertex_location="global",
+                vertex_project=google.auth.default()[1],  # image calls need the project spelled out
+            ).data[0]
+        except Exception as e:
+            # the invitation still works without art, so say what happened instead of failing
+            result["art_note"] = (f"The artwork couldn't be made ({type(e).__name__}), so the invitation has a "
+                                  "plain background. Tell the user they can ask again in a minute for one with artwork.")
+            continue
+        art_id = uuid.uuid4().hex
+        invitation_art[art_id] = base64.b64decode(image.b64_json)
+        if len(invitation_art) > 20:
+            del invitation_art[next(iter(invitation_art))]  # drop the oldest so memory doesn't keep growing
+        result["art"] = f"/invitation-art/{art_id}"
+        result.pop("art_note", None)
+        break
+    return json.dumps(result)
+
+
 # What the model sees: the "set notes" in the screenplay.
 TOOLS = [
     {
@@ -398,6 +583,67 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_restaurants",
+            "description": (
+                "Find up to 8 real restaurants near the party to cater or order food from, closest first, each "
+                "with its cuisine, distance, a map link and, when known, its address, website, phone and hours. "
+                "Has no ratings or prices."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": (
+                            "Where the party is: an address or a neighborhood with its city works best "
+                            "('East Village, New York'); a city alone searches around its center."
+                        ),
+                    },
+                    "cuisine": {
+                        "type": "string",
+                        "description": "Optional. One word, e.g. 'Italian', 'Mexican', 'pizza'. Leave out for any cuisine.",
+                    },
+                },
+                "required": ["location"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "make_invitation",
+            "description": (
+                "Make an invitation for the party. The chat shows it as a card with artwork generated for the "
+                "theme, which the user can save as an image or add to their calendar."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Headline of the invitation, e.g. 'Maya's 30th Birthday'"},
+                    "date": {"type": "string", "description": "Day of the party as YYYY-MM-DD"},
+                    "start_time": {
+                        "type": "string",
+                        "description": "When it starts, 24 hour HH:MM, e.g. '18:30'. Never guess it: ask the user if they haven't said.",
+                    },
+                    "end_time": {"type": "string", "description": "Optional. When it ends, 24 hour HH:MM"},
+                    "location": {"type": "string", "description": "Where it is, as it should read on the invitation"},
+                    "theme": {
+                        "type": "string",
+                        "description": "What the artwork should look like, e.g. '70s disco, gold and mirror balls'",
+                    },
+                    "host": {"type": "string", "description": "Optional. Who is hosting. Leave out if the user hasn't said."},
+                    "note": {
+                        "type": "string",
+                        "description": "Optional. One short line for guests, e.g. a dress code or what to bring.",
+                    },
+                },
+                "required": ["title", "date", "start_time", "location", "theme"],
+            },
+        },
+    },
 ]
 
 # What the harness runs: tool name -> Python function.
@@ -407,6 +653,8 @@ TOOL_MAP = {
     "find_recipes": find_recipes,
     "make_mood_board": make_mood_board,
     "make_party_playlist": make_party_playlist,
+    "find_restaurants": find_restaurants,
+    "make_invitation": make_invitation,
 }
 
 
